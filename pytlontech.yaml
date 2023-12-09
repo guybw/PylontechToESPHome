@@ -1,1 +1,428 @@
 
+esphome:
+  name: pylontech
+  friendly_name: Pylontech
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+
+logger:
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret pylontech_encryption
+
+ota:
+  password: !secret pylontech_ota
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Pylontech Fallback Hotspot"
+    password: "password"
+
+captive_portal:
+
+
+uart:
+  id: uart_bus
+  tx_pin: 1
+  rx_pin: 3
+  baud_rate: 115200
+  rx_buffer_size: 2048
+  debug:
+    direction: both
+    dummy_receiver: true
+    after:
+      delimiter: "\r\r\n"
+    sequence:
+      - lambda: |-
+          UARTDebug::log_string(direction, bytes);  // Still log the data
+          
+          int sensorID = 0;
+          float sensorTEMP = 0; 
+          int intValue = 0;
+          int highTemp_mC;
+          int lowTemp_mC;
+          float highestVoltage;
+          float averageVoltage;
+          float lowestVoltage;
+          
+          // Example to convert uart text to string
+          std::string str(bytes.begin(), bytes.end());
+
+          // Watch for potential problems with non-printable or special characters in string
+          id(rawString).publish_state(str.c_str());
+        
+          // INFO Section
+
+
+          // info - cells
+          if (sscanf(str.c_str(), " Cell Number :%d", &intValue) == 1) {
+            id(infocells).publish_state(intValue);
+            return;
+          }
+          
+          if (sscanf(str.c_str(), "\rMax Charge Curr         : %d", &intValue) == 1) {
+            id(infomaxchargecurr).publish_state(intValue);
+            return;
+          }
+
+
+          char stringValue[100]; // Adjust the size as per your needs
+
+          if (sscanf(str.c_str(), " Device address : %d", &intValue) == 1) {
+            id(infodeviceaddress).publish_state(intValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), " Manufacturer : %[^\r\n]", stringValue) == 1) {
+            id(infomanufacturer).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "rDevice name         :%[^\r\n]", stringValue) == 1) {
+            id(infodevicename).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rBoard version         :%[^\r\n]", stringValue) == 1) {
+            id(infoboardversion).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rMain Soft version         :%[^\r\n]", stringValue) == 1) {
+            id(infomainsoftversion).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rSoft version         :%[^\r\n]", stringValue) == 1) {
+            id(infosoftversion).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rBoot version         :%[^\r\n]", stringValue) == 1) {
+            id(infobootversion).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rComm version         :%[^\r\n]", stringValue) == 1) {
+            id(infocommversion).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rRelease Date         :%[^\r\n]", stringValue) == 1) {
+            id(inforeleasedate).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rBarcode         :%[^\r\n]", stringValue) == 1) {
+            id(infobarcode).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rSpecification         :%[^\r\n]", stringValue) == 1) {
+            id(infospecification).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rMax Dischg Curr         :%[^\r\n]", stringValue) == 1) {
+            id(infomaxdischgcurr).publish_state(stringValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), "\rEPONPort rate         :%[^\r\n]", stringValue) == 1) {
+            id(infoeponportrate).publish_state(stringValue);
+            return;
+          }
+          // Working Power Percent from STAT command.
+          if (sscanf(str.c_str(), "Pwr Percent     :%d", &intValue) == 1) {
+            id(statSOC).publish_state(intValue);
+            return;
+          }
+
+
+
+          if (sscanf(str.c_str(), " Average temperature : %d mC", &intValue) == 1) {
+            id(pwrsys_average_Temp).publish_state(intValue);
+           return;
+          }
+          
+          if (sscanf(str.c_str(), " Highest temperature : %d mC", &intValue) == 1) {
+            id(pwrsys_high_Temp).publish_state(intValue);
+            return;
+          }
+
+          if (sscanf(str.c_str(), " Lowest temperature : %d mC", &intValue) == 1) {
+            id(pwrsys_low_Temp).publish_state(intValue);
+            return;
+          }
+          
+          // Display the adverage voltage information from POWERSYS
+          if (sscanf(str.c_str(), " Average voltage : %d mV", &intValue) == 1) {
+            id(pwrsys_average_voltage).publish_state(intValue);
+            return;
+          }
+          
+
+          // Display the lowest voltage information from POWERSYS
+          if (sscanf(str.c_str(), " Lowest voltage           : %f", &lowestVoltage) == 1) {
+            id(pwrsys_lowest_voltage).publish_state(lowestVoltage);
+            return;
+          }
+
+          // Display the highest voltage information from POWERSYS
+          if (sscanf(str.c_str(), " Highest voltage          : %f", &highestVoltage) == 1) {
+            id(pwrsys_highest_voltage).publish_state(highestVoltage);
+            return;
+          }
+          
+          if (sscanf(str.c_str(), " System Volt : %d mV", &intValue) == 1) {
+            id(pwrsys_system_voltage).publish_state(intValue);
+            return;
+          }
+
+
+          // Assuming str is the input string
+          int systemSOH;
+          if (sscanf(str.c_str(), " System SOC : %d %%", &systemSOH) == 1) {
+          // Do something with systemSOH, it now contains the extracted value
+            id(pwrsys_soh).publish_state(systemSOH);
+            return;
+          }
+
+
+
+sensor:
+  - platform: template
+    name: "INFO-Cells"
+    id: infocells
+
+  - platform: template
+    name: "INFO-Device Address"
+    id: infodeviceaddress
+
+  - platform: template
+    name: "INFO-Max Charge Current"
+    id: infomaxchargecurr
+
+  - platform: template
+    name: "STAT-SOC"
+    id: "statSOC"
+    unit_of_measurement: "%"
+
+  - platform: template
+    name: "PWRSYS-SOC"
+    id: "pwrsys_soh"
+    unit_of_measurement: "%"
+
+
+
+  - platform: template
+    name: "PWRSYS-Temperature Adverage"
+    unit_of_measurement: "°C"
+    id: "pwrsys_average_Temp"
+    filters:
+    - multiply: 0.001 
+
+  - platform: template
+    name: "PWRSYS-Temperature High"
+    id: pwrsys_high_Temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001  # Convert from milli Celsius to Celsius
+
+  - platform: template
+    name: "PWRSYS-Temperature Low"
+    id: pwrsys_low_Temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001  # Convert from milli Celsius to Celsius
+
+
+  - platform: template
+    name: "PWRSYS-Voltage Average"
+    id: pwrsys_average_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001  # Convert from milli Volts to volts
+  
+  - platform: template
+    name: "PWRSYS-Voltage Lowest"
+    id: pwrsys_lowest_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001  # Convert from milli Volts to volts
+
+  - platform: template
+    name: "PWRSYS-Voltage Highest"
+    id: pwrsys_highest_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001  # Convert from milli Volts to volts
+
+  - platform: template
+    name: "PWRSYS-System Voltage"
+    id: pwrsys_system_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001  # Convert from milli Volts to volts
+
+
+
+text_sensor:
+  - platform: template
+    name: "Raw String"
+    id: "rawString"
+  - platform: template
+    name: "INFO - Manufacturer"
+    id: infomanufacturer
+  - platform: template
+    name: "INFO - Device Name"
+    id: infodevicename
+  - platform: template
+    name: "INFO - Board Version"
+    id: infoboardversion
+  - platform: template
+    name: "INFO - Main Soft Version"
+    id: infomainsoftversion
+  - platform: template
+    name: "INFO - Soft Version"
+    id: infosoftversion
+  - platform: template
+    name: "INFO - Boot Version"
+    id: infobootversion
+  - platform: template
+    name: "INFO - Comm Version"
+    id: infocommversion
+  - platform: template
+    name: "INFO - Release Date"
+    id: inforeleasedate
+  - platform: template
+    name: "INFO - Barcode"
+    id: infobarcode
+  - platform: template
+    name: "INFO - Specification"
+    id: infospecification
+  - platform: template
+    name: "INFO - Max Discharge Current"
+    id: infomaxdischgcurr
+  - platform: template
+    name: "INFO - EPON Port Rate"
+    id: infoeponportrate
+
+  
+button:
+
+  - platform: template
+    name: "BUTTON-info"
+    on_press:
+      - uart.write: "info\r\n" 
+  - platform: template
+    name: "BUTTON-power"
+    on_press:
+      - uart.write: "pwr\r\n"   
+  - platform: template
+    name: "BUTTON-data"
+    on_press:
+      - uart.write: "data\r\n" 
+  - platform: template
+    name: "BUTTON-stat"
+    on_press:
+      - uart.write: "stat\r\n"
+  - platform: template
+    name: "BUTTON-bat"
+    on_press:
+      - uart.write: "bat\r\n"
+  - platform: template
+    name: "BUTTON-Login Debug"
+    on_press:
+      - uart.write: "login debug\r\n"
+  - platform: template
+    name: "BUTTON-Power System Information (pwrsys)"
+    on_press:
+      - uart.write: "pwrsys\r\n"
+  - platform: template
+    name: "BUTTON-unit"
+    on_press:
+      - uart.write: "unit\r\n"
+
+interval:
+  - interval: 1200s
+    then:
+      # INFO
+      - logger.log:
+          level: INFO
+          format: "Sending info command to the system"
+      - logger.log:
+          level: INFO
+          format: "this has sent the info command"
+        # For escape characters, you must use double quotes!
+      - uart.write: "info\r\n"
+      - delay: 2s
+
+  - interval: 12000s
+    then:
+      # POWER
+      - logger.log:
+          level: INFO
+          format: "Testing pwr commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the pwr command"
+        # For escape characters, you must use double quotes!
+      - uart.write: "pwr\r\n"
+      - delay: 2s
+
+
+  - interval: 300s
+    then:
+      # PWRSYS
+      - logger.log:
+          level: INFO
+          format: "Testing pwrsys commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the pwrsys command"
+        # For escape characters, you must use double quotes!
+      - uart.write: "pwrsys\r\n"
+      - delay: 5s
+
+  - interval: 120000s
+    then:
+      # SYS
+      - logger.log:
+          level: INFO
+          format: "Testing stat commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the stat command"
+        # For escape characters, you must use double quotes!
+      - uart.write: "stat\r\n"
+      - delay: 5s
+
+
+# Example configuration entry
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: admin
