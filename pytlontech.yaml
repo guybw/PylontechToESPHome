@@ -74,7 +74,12 @@ uart:
             id(infomaxchargecurr).publish_state(intValue);
             return;
           }
+          
+          if (sscanf(str.c_str(), "\rMax Dischg Curr         : %d", &intValue) == 1) {
+            id(infomaxdischgcurr).publish_state(std::to_string(intValue));
 
+            return;
+          }
 
           char stringValue[100]; // Adjust the size as per your needs
 
@@ -130,11 +135,6 @@ uart:
 
           if (sscanf(str.c_str(), "\rSpecification         :%[^\r\n]", stringValue) == 1) {
             id(infospecification).publish_state(stringValue);
-            return;
-          }
-
-          if (sscanf(str.c_str(), "\rMax Dischg Curr         :%[^\r\n]", stringValue) == 1) {
-            id(infomaxdischgcurr).publish_state(stringValue);
             return;
           }
 
