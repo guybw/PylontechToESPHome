@@ -330,35 +330,46 @@ text_sensor:
 
   
 button:
-
   - platform: template
     name: "BUTTON-info"
     on_press:
       - uart.write: "info\r\n" 
+      
   - platform: template
     name: "BUTTON-power"
     on_press:
       - uart.write: "pwr\r\n"   
+      
   - platform: template
     name: "BUTTON-data"
     on_press:
       - uart.write: "data\r\n" 
+      
   - platform: template
     name: "BUTTON-stat"
     on_press:
       - uart.write: "stat\r\n"
+      
   - platform: template
     name: "BUTTON-bat"
     on_press:
       - uart.write: "bat\r\n"
+      
   - platform: template
     name: "BUTTON-Login Debug"
     on_press:
       - uart.write: "login debug\r\n"
+      
   - platform: template
     name: "BUTTON-Power System Information (pwrsys)"
     on_press:
       - uart.write: "pwrsys\r\n"
+      
+ - platform: template
+    name: "BUTTON-Logout"
+    on_press:
+      - uart.write: "logout\r\n"  
+      
   - platform: template
     name: "BUTTON-unit"
     on_press:
