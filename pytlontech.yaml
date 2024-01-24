@@ -365,7 +365,7 @@ button:
     on_press:
       - uart.write: "pwrsys\r\n"
       
- - platform: template
+  - platform: template
     name: "BUTTON-Logout"
     on_press:
       - uart.write: "logout\r\n"  
