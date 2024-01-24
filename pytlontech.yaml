@@ -93,7 +93,7 @@ uart:
             return;
           }
 
-          if (sscanf(str.c_str(), "rDevice name         :%[^\r\n]", stringValue) == 1) {
+          if (sscanf(str.c_str(), " Device name : %[^\r\n]", stringValue) == 1) {
             id(infodevicename).publish_state(stringValue);
             return;
           }
