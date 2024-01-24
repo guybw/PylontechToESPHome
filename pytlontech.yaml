@@ -31,7 +31,6 @@ wifi:
 
 captive_portal:
 
-
 uart:
   id: uart_bus
   tx_pin: 1
@@ -42,7 +41,7 @@ uart:
     direction: both
     dummy_receiver: true
     after:
-      delimiter: "\r\r\n"
+      delimiter: "\n"
     sequence:
       - lambda: |-
           UARTDebug::log_string(direction, bytes);  // Still log the data
