@@ -161,7 +161,7 @@ uart:
             return;
           }
           
-          // Display the adverage voltage information from POWERSYS
+          // Display the average voltage information from POWERSYS
           if (sscanf(str.c_str(), " Average voltage : %d mV", &intValue) == 1) {
             id(pwrsys_average_voltage).publish_state(intValue);
             return;
@@ -222,7 +222,7 @@ sensor:
 
 
   - platform: template
-    name: "PWRSYS-Temperature Adverage"
+    name: "PWRSYS-Temperature average"
     unit_of_measurement: "°C"
     id: "pwrsys_average_Temp"
     filters:
