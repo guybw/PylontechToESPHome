@@ -15,6 +15,7 @@ If you get anything working please let me know by raising an issue.
 #  Issues
 
 Does your battery not return any data?
+
 It's likely you need to send the HEX string:
 7E 32 30 30 31 34 36 38 32 43 30 30 34 38 35 32 30 46 43 43 33 0D
 as a speed of 1200 which then allows this to work. I'm sure someone can script this but right now, I do it via a USB to serial cable if the batteries get turned off.
