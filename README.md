@@ -12,7 +12,7 @@ If you are in the UK I have a small batch of boards including the cable, custom 
 If you get anything working please let me know by raising an issue.
 
 
-# Issues
+#  Issues
 
 Does your battery not return any data?
 It's likely you need to send the HEX string:
