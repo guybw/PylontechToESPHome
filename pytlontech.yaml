@@ -1,23 +1,21 @@
-
 esphome:
-  name: pylontech
+  name: "pylontech"
   friendly_name: Pylontech
 
 esp8266:
   board: esp01_1m
 
 # Enable logging
-
 logger:
   baud_rate: 0
 
 # Enable Home Assistant API
 api:
   encryption:
-    key: !secret pylontech_encryption
+    key: !secret pylontech_api_key
 
 ota:
-  password: !secret pylontech_ota
+  password: !secret pylontech_ota_password
 
 wifi:
   ssid: !secret wifi_ssid
@@ -26,7 +24,7 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "Pylontech Fallback Hotspot"
+    ssid: "Pylontech172 Fallback Hotspot"
     password: "password"
 
 captive_portal:
@@ -58,8 +56,6 @@ uart:
           // Example to convert uart text to string
           std::string str(bytes.begin(), bytes.end());
 
-          // Watch for potential problems with non-printable or special characters in string
-          id(rawString).publish_state(str.c_str());
         
           // INFO Section
 
@@ -288,9 +284,6 @@ sensor:
 
 
 text_sensor:
-  - platform: template
-    name: "Raw String"
-    id: "rawString"
   - platform: template
     name: "INFO - Manufacturer"
     id: infomanufacturer
