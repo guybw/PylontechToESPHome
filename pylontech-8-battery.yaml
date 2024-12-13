@@ -1,0 +1,439 @@
+esphome:
+  name: "pylontech"
+  friendly_name: Pylontech
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret pylontech_api_key
+
+ota:
+  platform: esphome
+  password: !secret pylontech_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Pylontech172 Fallback Hotspot"
+    password: "password"
+
+captive_portal:
+
+# Example configuration entry
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: admin
+
+
+
+uart:
+  id: uart_bus
+  tx_pin: 1
+  rx_pin: 3
+  baud_rate: 115200
+  rx_buffer_size: 2048
+  debug:
+    direction: both
+    dummy_receiver: true
+    after:
+      delimiter: "\n"
+    sequence:
+      - lambda: |-
+          UARTDebug::log_string(direction, bytes); // Logs the data line
+
+          std::string str(bytes.begin(), bytes.end());
+
+          int intValue = 0;
+
+          // PWRSYS system SOC
+          if (sscanf(str.c_str(), " System SOC               : %d %%", &intValue) == 1) {
+            id(pwrsys_soh).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS average temperature
+          if (sscanf(str.c_str(), " Average temperature      : %d mC", &intValue) == 1) {
+            id(pwrsys_average_Temp).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS highest temperature
+          if (sscanf(str.c_str(), " Highest temperature      : %d mC", &intValue) == 1) {
+            id(pwrsys_high_Temp).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS lowest temperature
+          if (sscanf(str.c_str(), " Lowest temperature       : %d mC", &intValue) == 1) {
+            id(pwrsys_low_Temp).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS average voltage
+          if (sscanf(str.c_str(), " Average voltage          : %d mV", &intValue) == 1) {
+            id(pwrsys_average_voltage).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS lowest voltage
+          if (sscanf(str.c_str(), " Lowest voltage           : %d mV", &intValue) == 1) {
+            id(pwrsys_lowest_voltage).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS highest voltage
+          if (sscanf(str.c_str(), " Highest voltage          : %d mV", &intValue) == 1) {
+            id(pwrsys_highest_voltage).publish_state(intValue);
+            return;
+          }
+
+          // PWRSYS system voltage
+          if (sscanf(str.c_str(), " System Volt              : %d mV", &intValue) == 1) {
+            id(pwrsys_system_voltage).publish_state(intValue);
+            return;
+          }
+
+          // STAT SOC (Pwr Percent)
+          if (sscanf(str.c_str(), "Pwr Percent     :%d", &intValue) == 1) {
+            id(statSOC).publish_state(intValue);
+            return;
+          }
+
+          // Battery data lines:
+          // Format:
+          // 1     50601  11458  18200  14500 15400 3369   3376   Charge   Normal   Normal   Normal   71% ...
+          // Pattern to extract battery_num (1), Tempr(4th col), and SOC(13th col):
+          int battery_num, temp_mC, soc;
+          if (sscanf(
+                str.c_str(),
+                "%d %*d %*d %d %*d %*d %*d %*d %*s %*s %*s %*s %d%%",
+                &battery_num, &temp_mC, &soc
+              ) == 3) {
+            if (battery_num >= 1 && battery_num <= 8) {
+              switch (battery_num) {
+                case 1:
+                  id(battery_1_soc).publish_state(soc);
+                  id(battery_1_temp).publish_state(temp_mC);
+                  break;
+                case 2:
+                  id(battery_2_soc).publish_state(soc);
+                  id(battery_2_temp).publish_state(temp_mC);
+                  break;
+                case 3:
+                  id(battery_3_soc).publish_state(soc);
+                  id(battery_3_temp).publish_state(temp_mC);
+                  break;
+                case 4:
+                  id(battery_4_soc).publish_state(soc);
+                  id(battery_4_temp).publish_state(temp_mC);
+                  break;
+                case 5:
+                  id(battery_5_soc).publish_state(soc);
+                  id(battery_5_temp).publish_state(temp_mC);
+                  break;
+                case 6:
+                  id(battery_6_soc).publish_state(soc);
+                  id(battery_6_temp).publish_state(temp_mC);
+                  break;
+                case 7:
+                  id(battery_7_soc).publish_state(soc);
+                  id(battery_7_temp).publish_state(temp_mC);
+                  break;
+                case 8:
+                  id(battery_8_soc).publish_state(soc);
+                  id(battery_8_temp).publish_state(temp_mC);
+                  break;
+              }
+            }
+            return;
+          }
+
+sensor:
+  # Existing pwrsys and stat sensors
+  - platform: template
+    name: "STAT-SOC"
+    id: statSOC
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "PWRSYS-SOC"
+    id: pwrsys_soh
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "PWRSYS-Temperature Adverage"
+    unit_of_measurement: "°C"
+    id: pwrsys_average_Temp
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-Temperature High"
+    id: pwrsys_high_Temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-Temperature Low"
+    id: pwrsys_low_Temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-Voltage Average"
+    id: pwrsys_average_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-Voltage Lowest"
+    id: pwrsys_lowest_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-Voltage Highest"
+    id: pwrsys_highest_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "PWRSYS-System Voltage"
+    id: pwrsys_system_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    filters:
+      - multiply: 0.001
+
+  # Battery SOC and Temperature for 8 batteries
+  - platform: template
+    name: "Battery 1 SOC"
+    id: battery_1_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 1 Temperature"
+    id: battery_1_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 2 SOC"
+    id: battery_2_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 2 Temperature"
+    id: battery_2_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 3 SOC"
+    id: battery_3_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 3 Temperature"
+    id: battery_3_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 4 SOC"
+    id: battery_4_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 4 Temperature"
+    id: battery_4_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 5 SOC"
+    id: battery_5_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 5 Temperature"
+    id: battery_5_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 6 SOC"
+    id: battery_6_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 6 Temperature"
+    id: battery_6_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 7 SOC"
+    id: battery_7_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 7 Temperature"
+    id: battery_7_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+  - platform: template
+    name: "Battery 8 SOC"
+    id: battery_8_soc
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Battery 8 Temperature"
+    id: battery_8_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.001
+
+button:
+  - platform: template
+    name: "BUTTON-info"
+    on_press:
+      - uart.write: "info\r\n"
+      
+  - platform: template
+    name: "BUTTON-power"
+    on_press:
+      - uart.write: "pwr\r\n"
+      
+  - platform: template
+    name: "BUTTON-data"
+    on_press:
+      - uart.write: "data\r\n"
+      
+  - platform: template
+    name: "BUTTON-stat"
+    on_press:
+      - uart.write: "stat\r\n"
+      
+  - platform: template
+    name: "BUTTON-bat"
+    on_press:
+      - uart.write: "bat\r\n"
+      
+  - platform: template
+    name: "BUTTON-Login Debug"
+    on_press:
+      - uart.write: "login debug\r\n"
+      
+  - platform: template
+    name: "BUTTON-Power System Information (pwrsys)"
+    on_press:
+      - uart.write: "pwrsys\r\n"
+      
+  - platform: template
+    name: "BUTTON-Logout"
+    on_press:
+      - uart.write: "logout\r\n"
+      
+  - platform: template
+    name: "BUTTON-unit"
+    on_press:
+      - uart.write: "unit\r\n"
+
+interval:
+  - interval: 1200s
+    then:
+      - logger.log:
+          level: INFO
+          format: "Sending info command to the system"
+      - logger.log:
+          level: INFO
+          format: "this has sent the info command"
+      - uart.write: "info\r\n"
+      - delay: 2s
+
+  - interval: 12000s
+    then:
+      - logger.log:
+          level: INFO
+          format: "Testing pwr commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the pwr command"
+      - uart.write: "pwr\r\n"
+      - delay: 2s
+
+  - interval: 300s
+    then:
+      - logger.log:
+          level: INFO
+          format: "Testing pwrsys commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the pwrsys command"
+      - uart.write: "pwrsys\r\n"
+      - delay: 5s
+
+  - interval: 120000s
+    then:
+      - logger.log:
+          level: INFO
+          format: "Testing stat commands"
+      - logger.log:
+          level: INFO
+          format: "This has send the stat command"
+      - uart.write: "stat\r\n"
+      - delay: 5s
