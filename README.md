@@ -23,3 +23,7 @@ as a speed of 1200 which then allows this to work. I'm sure someone can script t
 pwrsys command doesn't work?
 
 Press the "Login debug" button and that will enable debug and then the pwrsys command will work.
+
+ # Suggestion
+ If you have an issue with your Pylontechs then I HIGHLY suggest looking at this: https://github.com/simonpasley/pylontech-battery-health
+ Simon has written a brilliant tool that I came across a while ago, it now supports Windows natively and IT WORKS!  Try it out....
