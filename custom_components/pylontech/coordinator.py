@@ -58,6 +58,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         self.module_info: dict[int, dict[str, Any]] = {}
         self._stat: dict[str, Any] = {}
         self._last_stat = 0.0
+        self._empty_polls = 0
 
     async def _async_setup(self) -> None:
         try:
@@ -74,6 +75,20 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
 
     async def _async_update_data(self) -> PylontechData:
         try:
+            return await self._poll()
+        except UpdateFailed:
+            self._empty_polls += 1
+            # A silent battery after a power-off needs a 1200-baud wake frame;
+            # try it every other failed cycle (bounded).
+            if 2 <= self._empty_polls <= 8 and self._empty_polls % 2 == 0:
+                try:
+                    await self.bridge.async_wake()
+                except PylontechConnectionError as wake_err:
+                    LOGGER.debug("wake attempt failed: %s", wake_err)
+            raise
+
+    async def _poll(self) -> PylontechData:
+        try:
             pwrsys_raw = await self.bridge.async_command("pwrsys", timeout=COMMAND_TIMEOUT)
             pwr_raw = await self.bridge.async_command("pwr", timeout=COMMAND_TIMEOUT)
         except PylontechConnectionError as err:
@@ -83,6 +98,8 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         modules = protocol.parse_pwr(pwr_raw)
         if system.get("voltage") is None and not modules:
             raise UpdateFailed("no data parsed from pwrsys/pwr")
+
+        self._empty_polls = 0
 
         # cell-balance health verdict (per module + stack)
         for mod in modules.values():

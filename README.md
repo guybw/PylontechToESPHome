@@ -1,9 +1,12 @@
 # PylontechToESPHome
 
-Monitor a **Pylontech** lithium battery stack (US2000 / US2000B / US2KBPL /
-US3000 / US3000C / US5000, "Type C" console) in **Home Assistant** over a cheap
+Monitor a **Pylontech** lithium battery stack in **Home Assistant** over a cheap
 **ESP8266** running **ESPHome** — full per-module and per-cell data, health
 assessment, and the on-device event log.
+
+Works with any Pylontech that has a **"Console" port** and speaks the "Type C"
+text protocol — US2000B / US2000C / US2KBPL / US3000 / US3000C / US5000 and
+similar. If your battery has a socket labelled *Console* on the BMS, you're in.
 
 ---
 
@@ -39,31 +42,49 @@ Prefer the new way.
 
 | | |
 |---|---|
-| **ESP8266** | An ESP-01S is enough. The author sells a ready-made board + Pylontech shield + cable + case (UK, £20 — email `guybw` at `hotmail` dot `com`). |
-| **Serial link** | The Pylontech "Console" port to the ESP UART. The shield does the RS232↔TTL level shift; otherwise use a MAX3232 adapter. Console is **115200 8N1**. |
-| **ESPHome ≥ 2026.3.0** | For the `serial_proxy` component. The Home Assistant *ESPHome Device Builder* add-on is new enough. |
-| **Home Assistant** | Any reasonably current version. HACS optional but easiest. |
+| **ESP8266** | An ESP-01S is enough. The author sells a ready-made board + Pylontech shield + cable + case, **pre-flashed** (UK, £20 — email `guybw` at `hotmail` dot `com`). With one of those, skip most of Part 1. |
+| **Serial link** | The Pylontech *Console* port to the ESP UART: battery TX → ESP RX, battery RX → ESP TX, GND → GND. The shield does the RS232↔TTL level shift; DIY, use a MAX3232 module. Console-port RJ pinout is documented in [irekzielinski's repo](https://github.com/irekzielinski/Pylontech-Battery-Monitoring). Console is **115200 8N1**. |
+| **ESPHome** | Version **≥ 2026.3.0** (for `serial_proxy`). The Home Assistant *ESPHome Device Builder* add-on auto-updates, so it's fine — see Part 1 if you don't have it yet. |
+| **Home Assistant** | Any reasonably current version. [HACS](https://hacs.xyz) makes installing this integration a click; manual copy works too. |
 
 ---
 
 ## Part 1 — Flash the ESPHome bridge
 
-1. Take [`pylontech_example.yaml`](pylontech_example.yaml) as your starting
-   point (copy it into your ESPHome config as e.g. `pylontech.yaml`).
-2. Create a `secrets.yaml` next to it:
+*(Using a pre-flashed board from the author? It's already done — jump to
+Part 2.)*
+
+**Get ESPHome, if you don't have it:** in Home Assistant, **Settings →
+Add-ons → Add-on Store → ESPHome Device Builder → Install → Start**, then
+**Open Web UI**.
+
+1. In the ESPHome dashboard, **New device** → name it `pylontech` → pick
+   *ESP8266*. It creates `pylontech.yaml` (with a generated API encryption
+   key inside — **keep that key line**).
+2. **Edit** that `pylontech.yaml` and replace everything *except the
+   `api:` / `encryption:` / `key:` line* with the contents of
+   [`pylontech_example.yaml`](pylontech_example.yaml) from this repo.
+3. Open **`secrets.yaml`** (top-right ⋮ menu → *Secrets* in the dashboard) and
+   add:
 
    ```yaml
    wifi_ssid: "YourWiFi"
    wifi_password: "YourWiFiPassword"
-   pylontech_api_key: "<32-byte base64 key>"     # ESPHome generates one for you
    pylontech_ota_password: "SomethingLong"
    ```
 
-3. Set `manual_ip` to a **free static IP** on your LAN (the integration needs a
-   stable address).
-4. Install / flash — **USB for the first flash**, OTA after that.
-5. Write down the **device IP** and the **API encryption key** — you enter both
-   in Home Assistant next.
+   (The example references `!secret pylontech_api_key` too — either add your
+   generated key there, or paste the key straight into `pylontech.yaml` and
+   delete that `!secret` line.)
+4. Set `manual_ip` in the YAML to a **free static IP** on your LAN — the
+   integration needs a stable address.
+5. **Install:**
+   - *First time:* **Plug into this computer** (USB). A bare ESP-01S needs a
+     USB-serial adapter with **GPIO0 held to GND** to enter programming mode —
+     this is the fiddly bit.
+   - *After that:* **Wirelessly (OTA)** — no cable.
+6. Note the device's **IP** and its **API encryption key** (the `key:` value) —
+   you enter both in Home Assistant next.
 
 The whole bridge config is ~40 lines; the important parts:
 
@@ -91,13 +112,16 @@ serial_proxy:
 
 **HACS (recommended)**
 
-1. HACS → ⋮ → *Custom repositories* → add this repo, category **Integration**.
-2. Install **Pylontech (ESPHome serial bridge)**, restart Home Assistant.
+1. HACS → ⋮ (top-right) → *Custom repositories*.
+2. Repository: `https://github.com/guybw/PylontechToESPHome` · Type:
+   **Integration** · Add.
+3. Find **Pylontech (ESPHome serial bridge)** in the list, **Download**, then
+   restart Home Assistant.
 
 **Manual**
 
-Copy `custom_components/pylontech/` into your HA `config/custom_components/` and
-restart.
+Copy the `custom_components/pylontech/` folder from this repo into your Home
+Assistant `config/custom_components/` folder, then restart.
 
 ---
 
@@ -114,6 +138,13 @@ bridge)”**, then enter:
 | **Serial port name** | `Pylontech Console` (must match `name:` on the `serial_proxy`) |
 
 That's it — nothing else is configured on the ESP.
+
+**Did it work?** Within a minute you should see a new **Pylontech** device with
+~15 sensors (State of charge, Voltage, Power, Cell health …) plus one **Battery
+N** sub-device per module. If it says *"Failed to connect"*, check the IP and
+that the encryption key matches exactly; if the device appears but everything
+is *Unavailable*, the ESP isn't talking to the battery yet — see
+[Troubleshooting](#troubleshooting).
 
 ---
 
@@ -181,18 +212,21 @@ now). The console's `time` command only accepts a **2-digit year**
 uses. Only affects **future** log timestamps; the RTC otherwise loses time on a
 full power-down.
 
+**`pylontech.wake`** — send the 1200-baud wake frame a silent battery needs
+after a full power-off, then switch back to 115200. Runs automatically after a
+few failed polls; this is the manual trigger.
+
 ---
 
 ## Troubleshooting
 
-**Battery returns no data at all.** After a full power-off some batteries need a
-wake-up frame at **1200 baud** before the 115200 console responds:
-
-```
-7E 32 30 30 31 34 36 38 32 43 30 30 34 38 35 32 30 46 43 43 33 0D
-```
-
-Send it once with a USB-serial adapter at 1200 baud (the classic method).
+**Battery returns no data at all.** After a full power-off some batteries stay
+silent on the 115200 console until they get a wake frame at **1200 baud**
+(`~20014682C0048520FCC3\r`). The integration handles this itself — after a few
+failed polls it drops the console to 1200 baud via `serial_proxy`, sends the
+frame, and switches back. You can also trigger it manually with the
+**`pylontech.wake`** service. The classic USB-serial-adapter-at-1200-baud
+method still works too.
 
 **`pwrsys` / `pwr` return nothing.** They need debug mode — the integration
 sends `login debug` on every connect automatically. If you're poking the
@@ -221,10 +255,15 @@ communication fault (link cable between packs). Isolated entries right after a
 power-up are the normal Pylontech power-on handshake; frequent ones during
 running mean a marginal link cable.
 
-**Poking the console directly.** Any `aioesphomeapi` client can open the
-`Pylontech Console` serial port. Useful commands: `info`, `info N`, `pwrsys`,
-`pwr`, `bat N`, `stat`, `data event [i]`, `data history [i]`, `help`, `time`,
-`logout`.
+---
+
+## For tinkerers — talk to the console yourself
+
+Any `aioesphomeapi` client can open the `Pylontech Console` serial port directly
+(the HA integration must be stopped first — the port allows one client at a
+time). Useful commands: `info`, `info N`, `pwrsys`, `pwr`, `bat N`, `stat`,
+`data event [i]`, `data history [i]`, `help`, `time`, `logout`. Send
+`login debug` first or most commands return nothing.
 
 ---
 

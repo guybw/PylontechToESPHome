@@ -22,6 +22,12 @@ _OK = "Command completed successfully"
 _ERR_MARKERS = ("Invalid command", "Unknown command", "fail to excute")
 
 
+# Some Pylontech batteries stay silent on the 115200 console after a full
+# power-off until they receive this frame at 1200 baud (the battery's EPON/link
+# port rate). ASCII: "~20014682C0048520FCC3\r".
+WAKE_FRAME = b"~20014682C0048520FCC3\r"
+
+
 def command_ok(raw: str) -> bool:
     """True if the console reported the command completed successfully."""
     return _OK in raw

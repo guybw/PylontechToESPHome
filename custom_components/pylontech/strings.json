@@ -114,6 +114,16 @@
           "description": "Which Pylontech stack to set (only needed if more than one is configured)."
         }
       }
+    },
+    "wake": {
+      "name": "Wake battery",
+      "description": "Sends the 1200-baud wake frame some batteries need to respond after a full power-off, then switches back to 115200.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Pylontech stack to wake (only needed if more than one is configured)."
+        }
+      }
     }
   }
 }

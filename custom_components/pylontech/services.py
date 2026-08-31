@@ -20,6 +20,7 @@ from .const import COMMAND_TIMEOUT, DOMAIN
 
 SERVICE_GET_LOG = "get_log"
 SERVICE_SET_TIME = "set_time"
+SERVICE_WAKE = "wake"
 
 ATTR_SOURCE = "source"
 ATTR_COUNT = "count"
@@ -42,6 +43,8 @@ _SET_TIME_SCHEMA = vol.Schema(
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
     }
 )
+
+_WAKE_SCHEMA = vol.Schema({vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string})
 
 
 @callback
@@ -113,10 +116,29 @@ def async_register_services(hass: HomeAssistant) -> None:
         schema=_GET_LOG_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
+    async def _wake(call: ServiceCall) -> ServiceResponse:
+        coordinator = _resolve_coordinator(call)
+        await coordinator.bridge.async_wake()
+        try:
+            reply = await coordinator.bridge.async_command(
+                "pwrsys", timeout=COMMAND_TIMEOUT
+            )
+            responded = bool(protocol.parse_pwrsys(reply).get("voltage"))
+        except PylontechConnectionError:
+            responded = False
+        return {"console_responded": responded}
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_TIME,
         _set_time,
         schema=_SET_TIME_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_WAKE,
+        _wake,
+        schema=_WAKE_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )

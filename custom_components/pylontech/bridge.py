@@ -15,7 +15,7 @@ from aioesphomeapi import APIClient, DeviceInfo, ReconnectLogic
 from aioesphomeapi.core import APIConnectionError
 
 from . import protocol
-from .const import CONNECT_TIMEOUT, LOGGER, LOGIN_COMMAND
+from .const import CONNECT_TIMEOUT, CONSOLE_BAUD, LOGGER, LOGIN_COMMAND, WAKE_BAUD
 
 
 class PylontechConnectionError(Exception):
@@ -162,6 +162,22 @@ class PylontechBridge:
         if not protocol.command_ok(reply):
             raise PylontechConnectionError(f"battery rejected time set: {reply.strip()}")
         return reply
+
+    async def async_wake(self) -> None:
+        """Nudge a silent battery: drop the console to 1200 baud, send the
+        wake frame, switch back to 115200. Needs serial_proxy runtime reconfig
+        (ESPHome >= 2026.3)."""
+        if self._instance is None:
+            raise PylontechConnectionError("bridge not connected")
+        async with self._lock:
+            LOGGER.info("%s: sending 1200-baud wake frame", self._host)
+            self._client.serial_proxy_configure(self._instance, WAKE_BAUD)
+            await asyncio.sleep(0.3)
+            self._client.serial_proxy_write(self._instance, protocol.WAKE_FRAME)
+            await asyncio.sleep(0.6)
+            self._client.serial_proxy_configure(self._instance, CONSOLE_BAUD)
+            await asyncio.sleep(0.3)
+            self._buf.clear()
 
     async def _raw_command(self, command: str, timeout: float) -> str:
         assert self._instance is not None
