@@ -27,11 +27,11 @@ Pylontech console ──serial── ESP8266 (ESPHome serial_proxy) ──WiFi/A
   that stream, sends the commands, parses the replies, and creates all the
   entities.
 
-**The old way:** the ESP parsed the console itself in ESPHome C++ lambdas and
-published a fixed set of sensors. It worked but was hard-coded to a battery
-count, brittle to firmware differences, and had no event log, health verdict,
-per-cell data, or clock sync. See [Legacy](#legacy-the-old-way) below. Prefer
-the new way.
+**The old way (`legacy/`):** the ESP parsed the console itself in ESPHome C++
+lambdas and published a fixed set of sensors. It worked but was hard-coded to a
+battery count, brittle to firmware differences, and had no event log, health
+verdict, per-cell data, or clock sync. See [Legacy](#legacy-the-old-way) below.
+Prefer the new way.
 
 ---
 
@@ -230,23 +230,17 @@ running mean a marginal link cable.
 
 ## Legacy (the old way)
 
-The original approach was a single ESPHome YAML that parsed the console in C++
-lambdas and published sensors straight from the ESP — no Home Assistant
-integration required. Two variants existed: one for a single battery, one
-hard-coded for up to 8 modules.
+`legacy/` holds the original approach: a single ESPHome YAML that parsed the
+console in C++ lambdas and published sensors straight from the ESP — no Home
+Assistant integration required.
 
-It still works, but it's frozen. Pull the old files from git history if you
-want them:
+- `legacy/pytlontech.yaml` — single battery
+- `legacy/pylontech-8-battery.yaml` — up to 8 modules (hard-coded)
+- `legacy/README.md` — the original project docs
 
-```
-git log --oneline            # find the last commit before the rewrite
-git show <commit>:pytlontech.yaml
-git show <commit>:pylontech-8-battery.yaml
-```
-
-The new bridge + integration replaces it with dynamic module/cell discovery,
-mixed-stack support, health assessment, the event log, and clock sync. If you
-were running the old YAML, move to
+It still works, but it's frozen. The new bridge + integration replaces it with
+dynamic module/cell discovery, mixed-stack support, health assessment, the
+event log, and clock sync. If you were running the old YAML, move to
 [Part 1](#part-1--flash-the-esphome-bridge).
 
 ---
