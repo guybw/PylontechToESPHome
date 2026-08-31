@@ -1,0 +1,75 @@
+# =============================================================================
+#  pylontech_example.yaml — ESPHome "dumb serial bridge" for a Pylontech stack
+# =============================================================================
+#  Flash this to an ESP8266 (ESP-01S on the Pylontech console shield). It does
+#  NO protocol parsing — it just exposes the battery's RS232 console over the
+#  ESPHome Native API using the `serial_proxy` component. The Home Assistant
+#  "Pylontech (ESPHome serial bridge)" integration then does all the talking.
+#
+#  Requirements
+#    - ESPHome >= 2026.3.0  (the `serial_proxy` component; the HA "ESPHome
+#      Device Builder" add-on is new enough).
+#    - A serial link to the battery's "Console" port (the shield / a
+#      RS232<->TTL adapter). Console runs at 115200 8N1.
+#
+#  Setup
+#    1. Copy this file, e.g. to `pylontech.yaml` in your ESPHome config.
+#    2. Create `secrets.yaml` alongside it with:
+#
+#         wifi_ssid: "YourWiFi"
+#         wifi_password: "YourWiFiPassword"
+#         pylontech_api_key: "<32-byte base64 key>"   # ESPHome makes one for you
+#         pylontech_ota_password: "SomethingLong"
+#
+#    3. Set `manual_ip` below to a free static IP on your LAN.
+#    4. Install / Flash (USB for the first flash, OTA after that).
+#    5. Note the device's IP and the API encryption key — you'll enter both in
+#       Home Assistant when you add the integration.
+# =============================================================================
+
+esphome:
+  name: pylontech
+  friendly_name: Pylontech
+
+esp8266:
+  board: esp01_1m
+
+# UART0 (GPIO1/GPIO3) is wired to the battery, so logging can't use serial.
+# Logs are still visible over the network / in the ESPHome add-on.
+logger:
+  baud_rate: 0
+
+# Native API — required by serial_proxy and by Home Assistant.
+api:
+  encryption:
+    key: !secret pylontech_api_key
+
+ota:
+  - platform: esphome
+    password: !secret pylontech_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # A fixed IP so Home Assistant always knows where to reach the bridge.
+  manual_ip:
+    static_ip: 192.168.1.50
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+
+# --- The bridge ------------------------------------------------------------
+uart:
+  id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200
+  # 4096, not the 2048 default: the `pwr` reply is a ~2.6 KB burst and a
+  # smaller buffer overruns it (early battery rows get dropped/merged).
+  rx_buffer_size: 4096
+
+serial_proxy:
+  - id: pylontech_console
+    uart_id: uart_bus
+    name: "Pylontech Console"     # must match "Serial port name" in HA
+    port_type: TTL

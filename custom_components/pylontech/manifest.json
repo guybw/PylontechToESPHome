@@ -1,0 +1,12 @@
+{
+  "domain": "pylontech",
+  "name": "Pylontech (ESPHome serial bridge)",
+  "codeowners": ["@guybw"],
+  "config_flow": true,
+  "documentation": "https://github.com/guybw/PylontechToESPHome",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/guybw/PylontechToESPHome/issues",
+  "requirements": ["aioesphomeapi>=41.0.0"],
+  "version": "0.1.0"
+}

@@ -1,0 +1,119 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to the Pylontech serial bridge",
+        "description": "Enter the ESPHome device running the serial_proxy bridge. The encryption key is the API `key` from your ESPHome secrets.",
+        "data": {
+          "host": "Host",
+          "encryption_key": "API encryption key",
+          "port": "Port",
+          "proxy_name": "Serial port name"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the ESP (e.g. 192.168.186.98)",
+          "port": "ESPHome native API port (default 6053)",
+          "proxy_name": "The `name:` of the serial_proxy in the ESPHome config"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect, or the serial port name was not found on that device.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Poll interval (seconds)",
+          "cell_sensors": "Per-cell sensors",
+          "sync_time": "Sync battery clock"
+        },
+        "data_description": {
+          "cell_sensors": "Adds a voltage sensor for every cell, plus a weakest-cell and balancing sensor per battery. Sends one extra 'bat N' command per battery each poll.",
+          "sync_time": "Sets the battery's real-time clock to Home Assistant's time on every connect. Only affects future log timestamps."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "soc": { "name": "State of charge" },
+      "soh": { "name": "State of health" },
+      "voltage": { "name": "Voltage" },
+      "current": { "name": "Current" },
+      "power": { "name": "Power" },
+      "remaining_capacity": { "name": "Remaining capacity" },
+      "full_charge_capacity": { "name": "Full charge capacity" },
+      "cell_voltage_min": { "name": "Min cell voltage" },
+      "cell_voltage_max": { "name": "Max cell voltage" },
+      "cell_voltage_avg": { "name": "Average cell voltage" },
+      "cell_voltage_delta": { "name": "Cell voltage delta" },
+      "temperature_min": { "name": "Min temperature" },
+      "temperature_max": { "name": "Max temperature" },
+      "temperature_avg": { "name": "Average temperature" },
+      "cell_temp_min": { "name": "Min cell temperature" },
+      "cell_temp_max": { "name": "Max cell temperature" },
+      "mos_temperature": { "name": "MOSFET temperature" },
+      "modules_present": { "name": "Modules present" },
+      "cycle_count": { "name": "Charge cycles" },
+      "last_update": { "name": "Last update" },
+      "module_state": { "name": "State" },
+      "health": {
+        "name": "Cell health",
+        "state": {
+          "healthy": "Healthy",
+          "degrading": "Degrading",
+          "failed": "Failed",
+          "unknown": "Unknown"
+        }
+      },
+      "cell_voltage": { "name": "Cell {cell} voltage" },
+      "weakest_cell": { "name": "Weakest cell" }
+    },
+    "binary_sensor": {
+      "charging": { "name": "Charging" },
+      "problem": { "name": "Problem" },
+      "balancing": { "name": "Balancing" }
+    }
+  },
+  "services": {
+    "get_log": {
+      "name": "Get log",
+      "description": "Reads recent records from the battery's on-device event or history log.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Which log to read: 'event' (faults/state changes) or 'history' (periodic samples)."
+        },
+        "count": {
+          "name": "Count",
+          "description": "How many recent records to return (1-50)."
+        },
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Pylontech stack to query (only needed if more than one is configured)."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Set battery clock",
+      "description": "Sets the battery's real-time clock. Only affects future log timestamps.",
+      "fields": {
+        "datetime": {
+          "name": "Date and time",
+          "description": "Time to set. Defaults to Home Assistant's current time."
+        },
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Pylontech stack to set (only needed if more than one is configured)."
+        }
+      }
+    }
+  }
+}
