@@ -68,6 +68,7 @@
         "name": "Cell health",
         "state": {
           "healthy": "Healthy",
+          "pending": "Pending",
           "degrading": "Degrading",
           "failed": "Failed",
           "unknown": "Unknown"

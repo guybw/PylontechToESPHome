@@ -286,10 +286,23 @@ _LOAD_CURRENT_A = 0.2
 HEALTH_HEALTHY = "healthy"
 HEALTH_DEGRADING = "degrading"
 HEALTH_FAILED = "failed"
+HEALTH_PENDING = "pending"
 HEALTH_UNKNOWN = "unknown"
-HEALTH_STATES = [HEALTH_HEALTHY, HEALTH_DEGRADING, HEALTH_FAILED, HEALTH_UNKNOWN]
+HEALTH_STATES = [
+    HEALTH_HEALTHY,
+    HEALTH_PENDING,
+    HEALTH_DEGRADING,
+    HEALTH_FAILED,
+    HEALTH_UNKNOWN,
+]
 
-_HEALTH_RANK = {HEALTH_HEALTHY: 0, HEALTH_UNKNOWN: 1, HEALTH_DEGRADING: 2, HEALTH_FAILED: 3}
+_HEALTH_RANK = {
+    HEALTH_HEALTHY: 0,
+    HEALTH_PENDING: 1,
+    HEALTH_UNKNOWN: 2,
+    HEALTH_DEGRADING: 3,
+    HEALTH_FAILED: 4,
+}
 
 
 def assess_cell_health(
@@ -302,16 +315,16 @@ def assess_cell_health(
     if None in (delta_mv, current_a, soc, temp_c):
         return HEALTH_UNKNOWN, "no_data"
     if temp_c <= 5:
-        return HEALTH_UNKNOWN, "too_cold"
+        return HEALTH_PENDING, "too_cold"
 
     if abs(current_a) >= _LOAD_CURRENT_A:
         if not 15 <= soc <= 95:
-            return HEALTH_UNKNOWN, "soc_out_of_window"
+            return HEALTH_PENDING, "soc_out_of_window"
         warn, fail = _HEALTH_LOADED
         condition = "under_load"
     else:
         if not 10 <= soc <= 85:
-            return HEALTH_UNKNOWN, "soc_out_of_window"
+            return HEALTH_PENDING, "soc_out_of_window"
         warn, fail = _HEALTH_IDLE
         condition = "idle"
 
