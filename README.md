@@ -222,10 +222,11 @@ few failed polls; this is the manual trigger.
 
 **Battery returns no data at all.** After a full power-off some batteries stay
 silent on the 115200 console until they get a wake frame at **1200 baud**
-(`~20014682C0048520FCC3\r`). The integration handles this itself — after a few
-failed polls it drops the console to 1200 baud via `serial_proxy`, sends the
-frame, and switches back. You can also trigger it manually with the
-**`pylontech.wake`** service. The classic USB-serial-adapter-at-1200-baud
+(`~20014682C0048520FCC3\r`). The integration handles this itself — it sends the
+frame at first setup if the console is silent, and again after a few failed
+polls: it drops the console to 1200 baud via `serial_proxy`, sends the frame,
+switches back, and re-enters debug mode. You can also trigger it manually with
+the **`pylontech.wake`** service. The classic USB-serial-adapter-at-1200-baud
 method still works too.
 
 **`pwrsys` / `pwr` return nothing.** They need debug mode — the integration

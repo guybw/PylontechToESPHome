@@ -165,19 +165,27 @@ class PylontechBridge:
 
     async def async_wake(self) -> None:
         """Nudge a silent battery: drop the console to 1200 baud, send the
-        wake frame, switch back to 115200. Needs serial_proxy runtime reconfig
-        (ESPHome >= 2026.3)."""
+        wake frame, switch back to 115200, then re-enter debug mode. Needs
+        serial_proxy runtime reconfig (ESPHome >= 2026.3)."""
         if self._instance is None:
             raise PylontechConnectionError("bridge not connected")
         async with self._lock:
             LOGGER.info("%s: sending 1200-baud wake frame", self._host)
             self._client.serial_proxy_configure(self._instance, WAKE_BAUD)
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.5)
             self._client.serial_proxy_write(self._instance, protocol.WAKE_FRAME)
-            await asyncio.sleep(0.6)
+            await asyncio.sleep(1.0)  # let the 22-byte frame clock out at 1200 baud
             self._client.serial_proxy_configure(self._instance, CONSOLE_BAUD)
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.5)
             self._buf.clear()
+            # A battery that had powered off comes back in its default,
+            # non-debug mode; prod it with a CR and log back in so that the
+            # next pwrsys/pwr poll returns data.
+            try:
+                await self._raw_command("", timeout=1.5)
+                await self._raw_command(LOGIN_COMMAND, timeout=4.0)
+            except Exception as err:  # noqa: BLE001 - best effort
+                LOGGER.debug("%s: post-wake login failed: %s", self._host, err)
 
     async def _raw_command(self, command: str, timeout: float) -> str:
         assert self._instance is not None
