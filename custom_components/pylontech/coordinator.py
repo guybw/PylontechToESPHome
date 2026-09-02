@@ -66,6 +66,22 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         except PylontechConnectionError as err:
             raise ConfigEntryNotReady(str(err)) from err
 
+        # A battery that was fully powered off stays silent on the 115200
+        # console until it gets a 1200-baud wake frame. A failed setup rebuilds
+        # the coordinator, so the empty-poll wake in _async_update_data never
+        # counts up to its threshold during setup retries — probe once here and
+        # wake straight away if the console is silent.
+        try:
+            probe = await self.bridge.async_command("pwr", timeout=COMMAND_TIMEOUT)
+        except PylontechConnectionError:
+            probe = ""
+        if not protocol.parse_pwr(probe):
+            LOGGER.debug("battery silent at setup, sending 1200-baud wake frame")
+            try:
+                await self.bridge.async_wake()
+            except PylontechConnectionError as err:
+                LOGGER.debug("setup wake failed: %s", err)
+
         try:
             self.info = protocol.parse_info(
                 await self.bridge.async_command("info", timeout=COMMAND_TIMEOUT)
