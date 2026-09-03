@@ -197,14 +197,20 @@ class PylontechBridge:
         deadline = loop.time() + timeout
         seen = 0
         idle_since = loop.time()
+        text = ""
         while loop.time() < deadline:
             await asyncio.sleep(0.15)
             text = bytes(self._buf).decode("ascii", "replace")
             if protocol.response_complete(text):
-                return text
+                break
             if len(self._buf) != seen:
                 seen = len(self._buf)
                 idle_since = loop.time()
             elif seen and loop.time() - idle_since > 0.6:
-                return text  # stream went quiet -> assume complete
-        return bytes(self._buf).decode("ascii", "replace")
+                break  # stream went quiet -> assume complete
+        else:
+            text = bytes(self._buf).decode("ascii", "replace")
+        LOGGER.debug(
+            "%s: %r -> %d bytes: %r", self._host, command, len(text), text[:300]
+        )
+        return text
