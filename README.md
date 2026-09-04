@@ -43,7 +43,7 @@ Prefer the new way.
 | | |
 |---|---|
 | **ESP8266** | An ESP-01S is enough. The author sells a ready-made board + Pylontech shield + cable + case, **pre-flashed** (UK, £20 — email `guybw` at `hotmail` dot `com`). With one of those, skip most of Part 1. |
-| **Serial link** | The Pylontech *Console* port to the ESP UART: battery TX → ESP RX, battery RX → ESP TX, GND → GND. The shield does the RS232↔TTL level shift; DIY, use a MAX3232 module. Console-port RJ pinout is documented in [irekzielinski's repo](https://github.com/irekzielinski/Pylontech-Battery-Monitoring). Console is **115200 8N1**. |
+| **Serial link** | The Pylontech *Console* port to the ESP UART: battery TX → ESP RX, battery RX → ESP TX, GND → GND. The shield does the RS232↔TTL level shift; DIY, use a MAX3232 module. Console-port RJ pinout is documented in [irekzielinski's repo](https://github.com/irekzielinski/Pylontech-Battery-Monitoring). Console is **115200 8N1**. **Multi-module stack?** Wire to the **master's** Console port — a slave's console only answers for itself (see [Troubleshooting](#troubleshooting)). |
 | **ESPHome** | Version **≥ 2026.3.0** (for `serial_proxy`). The Home Assistant *ESPHome Device Builder* add-on auto-updates, so it's fine — see Part 1 if you don't have it yet. |
 | **Home Assistant** | Any reasonably current version. [HACS](https://hacs.xyz) makes installing this integration a click; manual copy works too. |
 
@@ -91,10 +91,13 @@ The whole bridge config is ~40 lines; the important parts:
 ```yaml
 uart:
   id: uart_bus
-  tx_pin: GPIO1
-  rx_pin: GPIO3
+  tx_pin: GPIO1                 # ESP8266's only real hardware UART — don't change these
+  rx_pin: GPIO3                 # (see "Responses look corrupted" in Troubleshooting)
   baud_rate: 115200
   rx_buffer_size: 4096          # the `pwr` reply is a ~2.6 KB burst; 2048 overruns it
+
+logger:
+  baud_rate: 0                  # logging must not fight the battery link for GPIO1/GPIO3
 
 serial_proxy:
   - id: pylontech_console
@@ -105,6 +108,13 @@ serial_proxy:
 
 > `serial_proxy` is an official but still **experimental** ESPHome component.
 > If it won't fit your ESP, see [Troubleshooting](#troubleshooting).
+>
+> **Keep `tx_pin`/`rx_pin` exactly as above.** Some visual config tools (e.g.
+> Home Assistant's *ESPHome Device Builder*) default a generic `uart:` block to
+> other pins, such as GPIO4/GPIO5. Those aren't a real UART, so ESPHome falls
+> back to bit-banged software serial — it can't keep up with 115200 baud once
+> WiFi is running, and you get exactly the corrupted, garbled responses
+> described in Troubleshooting.
 
 ---
 
@@ -228,6 +238,25 @@ polls: it drops the console to 1200 baud via `serial_proxy`, sends the frame,
 switches back, and re-enters debug mode. You can also trigger it manually with
 the **`pylontech.wake`** service. The classic USB-serial-adapter-at-1200-baud
 method still works too.
+
+**Responses look corrupted — random garbled bytes mixed into otherwise normal
+text.** Two common causes:
+- The UART isn't actually on GPIO1/GPIO3. See the callout in
+  [Part 1](#part-1--flash-the-esphome-bridge) — wrong pins silently fall back
+  to software serial, which glitches under WiFi load.
+- `logger:` is missing `baud_rate: 0`, so it's fighting the battery link for
+  the same pins.
+
+**Getting real data back, but only one module and never `pwrsys`.** You're
+plugged into a *slave* module's Console port, not the master's — a slave only
+answers for itself (`pwrsys` comes back short — just a handful of
+`Recommend chg/dsg` lines, no `System Volt`/`SOC`/`Total Num`); the
+system-wide `pwrsys` view and the full per-module `pwr` table only come from
+the master. Run `info` on each module's Console port in turn: the master
+reports `Device address : 1`. Note this **isn't** set by the `ADD` DIP
+switches — those set the RS485 baud rate and CAN bus termination resistor, not
+the stack address — so don't touch them trying to reorder modules; just try
+each unit's console port until `info` says address 1.
 
 **`pwrsys` / `pwr` return nothing.** They need debug mode — the integration
 sends `login debug` on every connect automatically. If you're poking the
