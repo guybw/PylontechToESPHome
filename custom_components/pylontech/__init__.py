@@ -5,9 +5,17 @@ from __future__ import annotations
 import re
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL, Platform
+from homeassistant.const import (
+    CONF_DEVICE,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_SCAN_INTERVAL,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import format_mac
+from yarl import URL
 
 from .bridge import PylontechBridge
 from .const import (
@@ -40,12 +48,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: PylontechConfigEntry) ->
     coordinator = PylontechDataUpdateCoordinator(hass, entry, bridge, scan_interval)
     await coordinator.async_config_entry_first_refresh()
 
+    _backfill_serial_port(hass, entry, bridge)
+
     entry.runtime_data = coordinator
     _prune_optional_entities(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     async_register_services(hass)
     return True
+
+
+def _backfill_serial_port(
+    hass: HomeAssistant, entry: PylontechConfigEntry, bridge: PylontechBridge
+) -> None:
+    """Add the ESPHome ``esphome-hass://`` URL to entries created before 0.2.0.
+
+    Without it Home Assistant keeps listing the ESP's serial port as unused
+    (Settings -> System -> Hardware). Matching URL lets it show as in use.
+    Re-adding the integration is not needed.
+    """
+    if entry.data.get(CONF_DEVICE):
+        return
+    info = bridge.esphome_device_info
+    mac = getattr(info, "mac_address", None)
+    want = format_mac(mac) if mac else None
+    esp = next(
+        (
+            e
+            for e in hass.config_entries.async_entries("esphome")
+            if (want and e.unique_id == want)
+            or e.data.get(CONF_HOST) == entry.data[CONF_HOST]
+        ),
+        None,
+    )
+    if esp is None:
+        return
+    url = str(
+        URL.build(
+            scheme="esphome-hass",
+            host="esphome",
+            path=f"/{esp.entry_id}",
+            query={"port_name": entry.data.get(CONF_PROXY_NAME, DEFAULT_PROXY_NAME)},
+        )
+    )
+    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_DEVICE: url})
 
 
 # per-cell / weakest-cell / balancing entities exist only while the option is on

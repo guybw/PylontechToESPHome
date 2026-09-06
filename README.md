@@ -45,7 +45,7 @@ Prefer the new way.
 | **ESP8266** | An ESP-01S is enough. The author sells a ready-made board + Pylontech shield + cable + case, **pre-flashed** (UK, £20 — email `guybw` at `hotmail` dot `com`). With one of those, skip most of Part 1. |
 | **Serial link** | The Pylontech *Console* port to the ESP UART: battery TX → ESP RX, battery RX → ESP TX, GND → GND. The shield does the RS232↔TTL level shift; DIY, use a MAX3232 module. Console-port RJ pinout is documented in [irekzielinski's repo](https://github.com/irekzielinski/Pylontech-Battery-Monitoring). Console is **115200 8N1**. **Multi-module stack?** Wire to the **master's** Console port — a slave's console only answers for itself (see [Troubleshooting](#troubleshooting)). |
 | **ESPHome** | Version **≥ 2026.3.0** (for `serial_proxy`). The Home Assistant *ESPHome Device Builder* add-on auto-updates, so it's fine — see Part 1 if you don't have it yet. |
-| **Home Assistant** | Any reasonably current version. [HACS](https://hacs.xyz) makes installing this integration a click; manual copy works too. |
+| **Home Assistant** | **≥ 2026.9** (the config flow lists the ESP's serial port for you). [HACS](https://hacs.xyz) makes installing this integration a click; manual copy works too. |
 
 ---
 
@@ -85,6 +85,12 @@ Add-ons → Add-on Store → ESPHome Device Builder → Install → Start**, the
    - *After that:* **Wirelessly (OTA)** — no cable.
 6. Note the device's **IP** and its **API encryption key** (the `key:` value) —
    you enter both in Home Assistant next.
+7. **Adopt the ESP in Home Assistant.** After it comes online HA discovers it —
+   **Settings → Devices & services → ESPHome → Configure** (or *Add*) — paste the
+   encryption key. This is what makes the serial port show up in the picker in
+   Part 3, lets HA mark it *in use*, and gives you the ESP's own diagnostics
+   (uptime, WiFi signal). Skip it and you can still set the integration up by
+   hand, but the port stays listed as unused.
 
 The whole bridge config is ~40 lines; the important parts:
 
@@ -137,8 +143,22 @@ Assistant `config/custom_components/` folder, then restart.
 
 ## Part 3 — Add it in Home Assistant
 
+> Needs Home Assistant **2026.9** or newer.
+
 **Settings → Devices & services → Add integration → “Pylontech (ESPHome serial
-bridge)”**, then enter:
+bridge)”**.
+
+**If you adopted the ESP in the ESPHome integration** (Part 1, step 7), its
+serial port is offered in a dropdown — pick
+**`<device>: <model> (Pylontech Console)`** and the host, API port and
+encryption key are filled in from ESPHome. Nothing else to enter. This is the
+same port Home Assistant lists under *Settings → System → Hardware* as
+*"connected but not used by any integration"*; setting it up here marks it in
+use. (Existing installs pick this up automatically on the first restart after
+upgrading — no need to delete and re-add.)
+
+**If you didn't**, or the ESP is offline, choose
+**Enter connection details manually...** and fill in:
 
 | Field | Value |
 |---|---|

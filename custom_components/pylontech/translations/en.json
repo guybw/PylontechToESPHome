@@ -2,6 +2,13 @@
   "config": {
     "step": {
       "user": {
+        "title": "Add a Pylontech serial bridge",
+        "description": "Pick the ESPHome serial port wired to your Pylontech console. Host, API port and encryption key are taken from the ESPHome device. Choose manual entry if it isn't listed.",
+        "data": {
+          "device": "Serial port"
+        }
+      },
+      "manual": {
         "title": "Connect to the Pylontech serial bridge",
         "description": "Enter the ESPHome device running the serial_proxy bridge. The encryption key is the API `key` from your ESPHome secrets.",
         "data": {
@@ -15,6 +22,10 @@
           "port": "ESPHome native API port (default 6053)",
           "proxy_name": "The `name:` of the serial_proxy in the ESPHome config"
         }
+      },
+      "confirm": {
+        "title": "Add a Pylontech serial bridge",
+        "description": "Set up Pylontech on {name}?"
       }
     },
     "error": {
@@ -22,7 +33,8 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "This device is already configured"
+      "already_configured": "This device is already configured",
+      "not_esphome_serial": "This serial port is not an ESPHome serial bridge."
     }
   },
   "options": {
