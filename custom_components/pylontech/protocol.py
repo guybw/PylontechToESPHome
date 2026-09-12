@@ -152,9 +152,9 @@ def parse_pwrsys(raw: str) -> dict[str, Any]:
 _PWR_ROW = re.compile(
     r"^\s*(?P<idx>\d+)\s+(?P<volt>-?\d+)\s+(?P<curr>-?\d+)\s+(?P<tempr>-?\d+)\s+"
     r"(?P<tlow>-?\d+)\s+(?P<thigh>-?\d+)\s+(?P<vlow>-?\d+)\s+(?P<vhigh>-?\d+)\s+"
-    r"(?P<base>\S+)\s+(?P<vst>\S+)\s+(?P<cst>\S+)\s+(?P<tst>\S+)\s+(?P<soc>\d+)%\s+"
-    r"(?P<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(?P<bvst>\S+)\s+(?P<btst>\S+)"
-    r"(?:\s+(?P<mos>-?\d+|-)\s+(?P<mtst>\S+))?\s*$"
+    r"(?P<base>\S+)(?:\s+\S+)*?\s+(?P<vst>\S+)\s+(?P<cst>\S+)\s+(?P<tst>\S+)\s+"
+    r"(?P<soc>\d+)%\s+(?P<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
+    r"(?P<bvst>\S+)\s+(?P<btst>\S+)(?:\s+(?P<mos>-?\d+|-)\s+(?P<mtst>\S+))?\s*$"
 )
 _PWR_ABSENT = re.compile(r"^\s*(?P<idx>\d+)\s+-\s+.*\bAbsent\b", re.IGNORECASE)
 

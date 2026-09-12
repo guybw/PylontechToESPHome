@@ -58,7 +58,7 @@ class PylontechModuleEntity(PylontechEntity):
             model = f"{model} ({mod_info['specification']})"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_module_{module}")},
-            name=f"Battery {module}",
+            name=f"Pylontech Battery {module}",
             manufacturer="Pylontech",
             model=model,
             sw_version=mod_info.get("main_soft_version"),
