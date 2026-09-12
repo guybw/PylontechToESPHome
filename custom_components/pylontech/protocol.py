@@ -142,6 +142,12 @@ def parse_pwrsys(raw: str) -> dict[str, Any]:
         "recommend_discharge_voltage": _volt(iv("Recommend dsg voltage")),
         "recommend_charge_current": _amp(iv("Recommend chg current")),
         "recommend_discharge_current": _amp(iv("Recommend dsg current")),
+        # Whole-stack ratings (sum of all modules), as opposed to the
+        # per-module "Recommend ..." lines above.
+        "system_recommend_charge_voltage": _volt(iv("system Recommend chg voltage")),
+        "system_recommend_discharge_voltage": _volt(iv("system Recommend dsg voltage")),
+        "system_recommend_charge_current": _amp(iv("system Recommend chg current")),
+        "system_recommend_discharge_current": _amp(iv("system Recommend dsg current")),
     }
     data["charging"] = None if current is None else current > 0.05
     return data
@@ -149,55 +155,88 @@ def parse_pwrsys(raw: str) -> dict[str, Any]:
 
 # --- pwr (per-module summary table) -------------------------------------
 
-_PWR_ROW = re.compile(
-    r"^\s*(?P<idx>\d+)\s+(?P<volt>-?\d+)\s+(?P<curr>-?\d+)\s+(?P<tempr>-?\d+)\s+"
-    r"(?P<tlow>-?\d+)\s+(?P<thigh>-?\d+)\s+(?P<vlow>-?\d+)\s+(?P<vhigh>-?\d+)\s+"
-    r"(?P<base>\S+)(?:\s+\S+)*?\s+(?P<vst>\S+)\s+(?P<cst>\S+)\s+(?P<tst>\S+)\s+"
-    r"(?P<soc>\d+)%\s+(?P<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
-    r"(?P<bvst>\S+)\s+(?P<btst>\S+)(?:\s+(?P<mos>-?\d+|-)\s+(?P<mtst>\S+))?\s*$"
-)
 _PWR_ABSENT = re.compile(r"^\s*(?P<idx>\d+)\s+-\s+.*\bAbsent\b", re.IGNORECASE)
 
 _NORMAL = "Normal"
 
+_DATE_TOKEN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_TIME_TOKEN = re.compile(r"^\d{2}:\d{2}:\d{2}$")
+
+
+def _split_pwr_row(line: str) -> list[str]:
+    """Split a ``pwr`` line on whitespace, joining the ``Time`` date+time pair
+    back into one token so it lines up with the header's single column."""
+    tokens = line.split()
+    merged: list[str] = []
+    i = 0
+    while i < len(tokens):
+        if i + 1 < len(tokens) and _DATE_TOKEN.match(tokens[i]) and _TIME_TOKEN.match(tokens[i + 1]):
+            merged.append(f"{tokens[i]} {tokens[i + 1]}")
+            i += 2
+        else:
+            merged.append(tokens[i])
+            i += 1
+    return merged
+
+
+def _pwr_int(fields: dict[str, str], name: str) -> int | None:
+    v = fields.get(name)
+    return None if v in (None, "-") else int(v)
+
 
 def parse_pwr(raw: str) -> dict[int, dict[str, Any]]:
-    """Parse ``pwr`` into ``{module_number: {metrics...}}`` for present modules."""
+    """Parse ``pwr`` into ``{module_number: {metrics...}}`` for present modules.
+
+    Columns are matched against the response's own header instead of a fixed
+    position: newer firmware has twice been seen inserting new columns (a
+    ``*.Id`` column next to each min/max, then a trailing ``SysAlarm.St``),
+    each time silently breaking a position-based parser. An unrecognised
+    column is simply ignored rather than shifting every field after it.
+    """
     modules: dict[int, dict[str, Any]] = {}
+    columns: list[str] | None = None
     for line in _body(raw):
-        if _PWR_ABSENT.match(line):
+        if not line.strip():
             continue
-        m = _PWR_ROW.match(line)
-        if not m:
+        tokens = _split_pwr_row(line)
+        if columns is None:
+            if tokens[0] == "Power":
+                columns = tokens[1:]
             continue
-        vlow = int(m["vlow"])
-        vhigh = int(m["vhigh"])
-        voltage = _volt(int(m["volt"]))
-        current = _amp(int(m["curr"]))
-        mos = m["mos"]
-        states = [m["vst"], m["cst"], m["tst"], m["bvst"], m["btst"]]
-        modules[int(m["idx"])] = {
+        if _PWR_ABSENT.match(line) or not tokens[0].isdigit():
+            continue
+
+        fields = dict(zip(columns, tokens[1:]))
+        vlow, vhigh = _pwr_int(fields, "Vlow"), _pwr_int(fields, "Vhigh")
+        voltage = _volt(_pwr_int(fields, "Volt"))
+        current = _amp(_pwr_int(fields, "Curr"))
+        mos = _pwr_int(fields, "MosTempr")
+        soc = fields.get("Coulomb")
+        mtst = fields.get("M.T.St")
+        states = [fields.get(k) for k in ("Volt.St", "Curr.St", "Temp.St", "B.V.St", "B.T.St")]
+
+        modules[int(tokens[0])] = {
             "present": True,
             "voltage": voltage,
             "current": current,
             "power": None if (voltage is None or current is None) else round(voltage * current, 1),
-            "temperature": _temp(int(m["tempr"])),
-            "cell_temp_min": _temp(int(m["tlow"])),
-            "cell_temp_max": _temp(int(m["thigh"])),
+            "temperature": _temp(_pwr_int(fields, "Tempr")),
+            "cell_temp_min": _temp(_pwr_int(fields, "Tlow")),
+            "cell_temp_max": _temp(_pwr_int(fields, "Thigh")),
             "cell_voltage_min": _volt(vlow),
             "cell_voltage_max": _volt(vhigh),
-            "cell_voltage_delta": vhigh - vlow,
-            "soc": int(m["soc"]),
-            "base_state": m["base"],
-            "volt_state": m["vst"],
-            "curr_state": m["cst"],
-            "temp_state": m["tst"],
-            "bv_state": m["bvst"],
-            "bt_state": m["btst"],
-            "mos_temperature": None if mos in (None, "-") else _temp(int(mos)),
-            "mt_state": None if m["mtst"] in (None, "-") else m["mtst"],
-            "timestamp": m["time"],
-            "problem": any(s != _NORMAL for s in states),
+            "cell_voltage_delta": None if (vlow is None or vhigh is None) else vhigh - vlow,
+            "soc": None if soc in (None, "-") else int(soc.rstrip("%")),
+            "base_state": fields.get("Base.St"),
+            "volt_state": fields.get("Volt.St"),
+            "curr_state": fields.get("Curr.St"),
+            "temp_state": fields.get("Temp.St"),
+            "bv_state": fields.get("B.V.St"),
+            "bt_state": fields.get("B.T.St"),
+            "mos_temperature": _temp(mos),
+            "mt_state": None if mtst in (None, "-") else mtst,
+            "timestamp": fields.get("Time"),
+            "problem": any(s not in (None, _NORMAL) for s in states),
         }
     return modules
 
