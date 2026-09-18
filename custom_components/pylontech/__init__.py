@@ -13,7 +13,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
 from yarl import URL
 
@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_PROXY_NAME,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
 )
 from .coordinator import PylontechDataUpdateCoordinator
 from .services import async_register_services
@@ -52,6 +53,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: PylontechConfigEntry) ->
 
     entry.runtime_data = coordinator
     _prune_optional_entities(hass, entry)
+    # Stack device must exist first: module devices reference it by registry id.
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Pylontech",
+        manufacturer="Pylontech",
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     async_register_services(hass)
