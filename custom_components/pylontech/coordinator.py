@@ -57,6 +57,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         self.info: dict[str, Any] = {}
         self.module_info: dict[int, dict[str, Any]] = {}
         self._stat: dict[str, Any] = {}
+        self._module_cycles: dict[int, int] = {}
         self._last_stat = 0.0
         self._empty_polls = 0
 
@@ -153,8 +154,20 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
                     await self.bridge.async_command("stat", timeout=COMMAND_TIMEOUT)
                 )
                 self._last_stat = now
+                # Plain `stat` is the master's only; each module counts its own cycles.
+                for num in sorted(modules):
+                    mod_stat = protocol.parse_stat(
+                        await self.bridge.async_command(
+                            f"stat {num}", timeout=COMMAND_TIMEOUT
+                        )
+                    )
+                    if "cycle_count" in mod_stat:
+                        self._module_cycles[num] = mod_stat["cycle_count"]
             except PylontechConnectionError as err:
                 LOGGER.debug("`stat` refresh failed: %s", err)
+
+        for num, mod in modules.items():
+            mod["cycle_count"] = self._module_cycles.get(num)
 
         if not self.info:
             try:

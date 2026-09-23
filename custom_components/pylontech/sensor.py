@@ -360,6 +360,13 @@ MODULE_SENSORS: tuple[PylontechModuleSensorDescription, ...] = (
         value_fn=_mod("mos_temperature"),
     ),
     PylontechModuleSensorDescription(
+        key="cycle_count",
+        translation_key="cycle_count",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=_mod("cycle_count"),
+    ),
+    PylontechModuleSensorDescription(
         key="state",
         translation_key="module_state",
         value_fn=_mod("base_state"),
