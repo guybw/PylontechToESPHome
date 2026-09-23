@@ -305,9 +305,11 @@ def parse_stat(raw: str) -> dict[str, Any]:
 
 # --- bat N (per-cell voltages for one module) -----------------------
 
+# The number of state columns between Tempr and SOC varies by model (US2000C:
+# 4, US3000D: 5 with separate DTemp/CTemp), so match them as a variable run.
 _BAT_ROW = re.compile(
     r"^\s*(?P<idx>\d+)\s+(?P<volt>\d+)\s+(?P<curr>-?\d+)\s+(?P<tempr>-?\d+)\s+"
-    r"\S+\s+\S+\s+\S+\s+\S+\s+(?P<soc>\d+)%\s+(?P<coulomb>\d+)\s*mAH\s+(?P<bal>[YN])\s*$"
+    r"(?:\S+\s+)+?(?P<soc>\d+)%\s+(?P<coulomb>\d+)\s*mAH\s+(?P<bal>[YN])\s*$"
 )
 
 
