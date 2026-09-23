@@ -5,7 +5,7 @@ Monitor a **Pylontech** lithium battery stack in **Home Assistant** over a cheap
 assessment, and the on-device event log.
 
 Works with any Pylontech that has a **"Console" port** and speaks the "Type C"
-text protocol — US2000B / US2000C / US2KBPL / US3000 / US3000C / US5000 and
+text protocol — US2000B / US2000C / US2KBPL / US3000 / US3000C / US3000D / US5000 and
 similar. If your battery has a socket labelled *Console* on the BMS, you're in.
 
 ---
@@ -349,7 +349,7 @@ Got it working? Please open an issue and say so.
 <sub>
 
 **Keywords:** Pylontech Home Assistant integration · Pylontech ESPHome · Pylontech
-US2000 US2000B US2000C US2KBPL US3000 US3000C US5000 Home Assistant · Pylontech
+US2000 US2000B US2000C US2KBPL US3000 US3000C US3000D US5000 Home Assistant · Pylontech
 console RS232 reader · Pylontech BMS monitoring · read Pylontech cell voltages
 Home Assistant · Pylontech state of health SoH · Pylontech cycle count · Pylontech
 event log / history log · Pylontech `pwrsys` `pwr` `bat` `stat` `info` commands ·
