@@ -18,7 +18,7 @@
           "proxy_name": "Serial port name"
         },
         "data_description": {
-          "host": "IP address or hostname of the ESP (e.g. 192.168.186.98)",
+          "host": "IP address or hostname of the ESP (e.g. 192.168.1.50)",
           "port": "ESPHome native API port (default 6053)",
           "proxy_name": "The `name:` of the serial_proxy in the ESPHome config"
         }

@@ -11,7 +11,7 @@ similar.
 **In short:**
 1. Connect an ESP to the battery's Console port (through an RS232 adapter).
 2. Flash it with the example YAML for your board ([ESP8266](pylontech_example_esp8266.yaml) or [ESP32](pylontech_example_esp32.yaml)).
-3. Install this integration in Home Assistant (HACS) and point it at the ESP.
+3. Install this integration in Home Assistant (Marketplace) and point it at the ESP.
 
 ---
 
@@ -31,10 +31,10 @@ Email `guybw` at `hotmail` dot `com`. They are £20 + postage.
 ## How it works
 
 ```
-Pylontech Console ──RS232── ESP (ESPHome serial_proxy) ──WiFi── Home Assistant
-                            plain bridge, no parsing             "Pylontech" integration:
-                                                                 sends commands, parses,
-                                                                 creates the entities
+Pylontech Console <> RS232  <>  ESP (ESPHome serial_proxy) <> WiFi   <>   Home Assistant
+                                plain bridge, no parsing                  "Pylontech" integration:
+                                                                          sends commands, parses,
+                                                                          creates the entities
 ```
 
 The battery's Console port answers text commands (`pwrsys`, `pwr`, `bat`,
@@ -56,7 +56,7 @@ updated.
 | **An ESP** | An **ESP8266** (an ESP-01S is enough) or an **ESP32** (e.g. a D1 Mini ESP32). Or buy a [ready-made unit](#ready-made-units-for-sale). |
 | **An RS232 adapter** | The Console port is RS232, not 3.3 V logic, so you need a level shifter such as a MAX3232 / SP3232 module (or the hat). Wire battery TX → ESP RX, battery RX → ESP TX, GND → GND. See [Console pinout](#console-pinout). |
 | **ESPHome** | **2026.3.0 or newer** (for `serial_proxy`). The *ESPHome Device Builder* add-on in Home Assistant is fine. |
-| **Home Assistant** | **2026.9 or newer**. [HACS](https://hacs.xyz) makes installing the integration a click. |
+| **Home Assistant** | **2026.9 or newer**. On 2026.11+ the built-in Marketplace makes installing the integration a click. |
 
 ### Console pinout
 
@@ -155,13 +155,15 @@ serial_proxy:
 
 ## Part 2 — Install the Home Assistant integration
 
-**HACS (recommended)**
+**Marketplace (recommended, Home Assistant 2026.11+)**
 
-1. HACS → ⋮ (top-right) → *Custom repositories*.
-2. Repository: `https://github.com/guybw/PylontechToESPHome` · Type:
-   **Integration** · Add.
-3. Find **Pylontech (ESPHome serial bridge)** in the list, **Download**, then
-   restart Home Assistant.
+1. **Settings → Marketplace → Add from link**.
+2. Enter `https://github.com/guybw/PylontechToESPHome` (the first time, approve
+   the GitHub sign-in it asks for).
+3. Install **Pylontech (ESPHome serial bridge)**, then restart Home Assistant.
+
+Installed it through HACS before? The 2026.11 update moves it into the
+Marketplace for you.
 
 **Manual**
 
