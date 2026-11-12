@@ -24,8 +24,7 @@ an RJ11 socket (US2000B) and an RJ45 socket (US2000C / US3000C / US5000 and
 newer) for the battery, plus a spare RS485 screw terminal. With one of these,
 skip Part 1 and go straight to [Part 2](#part-2--install-the-home-assistant-integration).
 
-Email `guybw` at `hotmail` dot `com`. The hardware is open source:
-[guybw/ESP_to_RS232_Hat](https://github.com/guybw/ESP_to_RS232_Hat).
+Email `guybw` at `hotmail` dot `com`. They are £20 + postage.
 
 ---
 
