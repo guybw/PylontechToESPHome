@@ -13,6 +13,8 @@ similar.
 2. Flash it with the example YAML for your board ([ESP8266](pylontech_example_esp8266.yaml) or [ESP32](pylontech_example_esp32.yaml)).
 3. Install this integration in Home Assistant (Marketplace) and point it at the ESP.
 
+<img src="docs/images/stack_overview.png" alt="Pylontech stack device in Home Assistant" width="700">
+
 ---
 
 ## Ready-made units for sale
@@ -214,6 +216,8 @@ is *Unavailable*, the ESP isn't talking to the battery yet — see
 A **Pylontech** stack device, plus **one device per battery module** (each
 shows its own model / spec / firmware / serial — mixed stacks are fine).
 
+<img src="docs/images/integration_devices.png" alt="Integration page: one stack device and eight battery modules" width="600">
+
 **Stack**
 
 - State of charge, State of health
@@ -233,6 +237,8 @@ shows its own model / spec / firmware / serial — mixed stacks are fine).
 - State (`Charge` / `Dischg` / `Idle` …)
 - **Cell health** (with `spread_mv` / `condition` attributes)
 - Binary: **Problem**
+
+<img src="docs/images/battery_module.png" alt="A single battery module device in Home Assistant" width="700">
 
 **Cell health** uses the cell-voltage spread, only judged when conditions are
 valid (enough load or a clean idle plateau, sensible SoC, not cold) — the
