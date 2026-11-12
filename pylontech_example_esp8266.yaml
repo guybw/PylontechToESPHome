@@ -1,7 +1,11 @@
 # =============================================================================
-#  pylontech_example.yaml — ESPHome "dumb serial bridge" for a Pylontech stack
+#  pylontech_example_esp8266.yaml — ESPHome serial bridge, ESP8266 version
 # =============================================================================
-#  Flash this to an ESP8266 (ESP-01S on the Pylontech console shield). It does
+#  For an ESP8266 (ESP-01S on the original console shield, or any ESP8266 wired
+#  to the battery on GPIO1/GPIO3).  Using an ESP32?  Use
+#  pylontech_example_esp32.yaml instead — these pins will not work there.
+#
+#  It does
 #  NO protocol parsing — it just exposes the battery's RS232 console over the
 #  ESPHome Native API using the `serial_proxy` component. The Home Assistant
 #  "Pylontech (ESPHome serial bridge)" integration then does all the talking.
@@ -61,6 +65,8 @@ wifi:
 # --- The bridge ------------------------------------------------------------
 uart:
   id: uart_bus
+  # The ESP8266's only real hardware UART — don't change these.  Other pins
+  # fall back to software serial, which garbles 115200 baud once WiFi runs.
   tx_pin: GPIO1
   rx_pin: GPIO3
   baud_rate: 115200
