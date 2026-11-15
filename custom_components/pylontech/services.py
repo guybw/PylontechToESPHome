@@ -21,6 +21,8 @@ from .const import COMMAND_TIMEOUT, DOMAIN
 SERVICE_GET_LOG = "get_log"
 SERVICE_SET_TIME = "set_time"
 SERVICE_WAKE = "wake"
+SERVICE_START_BALANCE = "start_balance"
+SERVICE_STOP_BALANCE = "stop_balance"
 
 ATTR_SOURCE = "source"
 ATTR_COUNT = "count"
@@ -128,6 +130,18 @@ def async_register_services(hass: HomeAssistant) -> None:
             responded = False
         return {"console_responded": responded}
 
+    async def _start_balance(call: ServiceCall) -> None:
+        _resolve_coordinator(call).balance_start()
+
+    async def _stop_balance(call: ServiceCall) -> None:
+        _resolve_coordinator(call).balance_stop()
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_BALANCE, _start_balance, schema=_WAKE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_STOP_BALANCE, _stop_balance, schema=_WAKE_SCHEMA
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_TIME,

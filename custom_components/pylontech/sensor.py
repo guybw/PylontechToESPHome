@@ -28,7 +28,7 @@ from . import PylontechConfigEntry
 from .const import CONF_CELL_SENSORS
 from .coordinator import PylontechData, PylontechDataUpdateCoordinator
 from .entity import PylontechEntity, PylontechModuleEntity, module_numbers
-from .protocol import HEALTH_STATES
+from .protocol import BALANCE_STATES, HEALTH_STATES
 
 # Ah has no HA unit constant / device class.
 _AMP_HOUR = "Ah"
@@ -253,6 +253,17 @@ SYSTEM_SENSORS: tuple[PylontechSystemSensorDescription, ...] = (
         options=HEALTH_STATES,
         icon="mdi:heart-pulse",
         value_fn=lambda data: data.system.get("health"),
+    ),
+    PylontechSystemSensorDescription(
+        key="force_balance",
+        translation_key="force_balance",
+        device_class=SensorDeviceClass.ENUM,
+        options=BALANCE_STATES,
+        icon="mdi:scale-balance",
+        value_fn=lambda data: data.balance.get("state"),
+        attributes_fn=lambda data: {
+            k: v for k, v in data.balance.items() if k not in ("state", "samples")
+        },
     ),
 )
 

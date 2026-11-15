@@ -12,7 +12,7 @@ think about balance.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 # --- console framing --------------------------------------------------------
@@ -418,6 +418,92 @@ def summarise_cells(cells: list[dict[str, Any]]) -> dict[str, Any]:
         "strongest_cell": hi_i,
         "balancing_cells": [c["index"] for c in cells if c.get("balancing")],
     }
+
+
+# --- force balance session ------------------------------------------------
+#
+# There is no console command for this: the BMS only balances at the top of
+# the charge, so a "force balance" means the inverter charges to 100 % and
+# holds it there. We time the hold and compare each module's cell spread at
+# the start of the hold with the average over its last 15 minutes.
+
+BALANCE_TARGET_MV = 30
+BALANCE_HOLD_SOC = 98
+BALANCE_DROP_SOC = 95
+BALANCE_HOLD = timedelta(hours=2)
+BALANCE_WINDOW = timedelta(minutes=15)
+BALANCE_TIMEOUT = timedelta(hours=48)
+
+BALANCE_IDLE = "idle"
+BALANCE_CHARGING = "charging"
+BALANCE_HOLDING = "holding"
+BALANCE_BALANCED = "balanced"
+BALANCE_GOOD_PROGRESS = "good_progress"
+BALANCE_CELL_BEHIND = "cell_behind"
+BALANCE_TIMED_OUT = "timed_out"
+BALANCE_STATES = [
+    BALANCE_IDLE,
+    BALANCE_CHARGING,
+    BALANCE_HOLDING,
+    BALANCE_BALANCED,
+    BALANCE_GOOD_PROGRESS,
+    BALANCE_CELL_BEHIND,
+    BALANCE_TIMED_OUT,
+]
+
+
+def balance_step(
+    session: dict[str, Any], now: datetime, soc: int | None, deltas: dict[int, int]
+) -> dict[str, Any]:
+    """Advance a force-balance session by one poll (mutates ``session``).
+
+    ``deltas`` is ``{module: cell spread in mV}``.
+    """
+    state = session.get("state")
+    if state == BALANCE_CHARGING:
+        if now - session["started"] > BALANCE_TIMEOUT:
+            session.update(state=BALANCE_TIMED_OUT, finished=now)
+        elif soc is not None and soc >= BALANCE_HOLD_SOC and deltas:
+            session.update(
+                state=BALANCE_HOLDING,
+                hold_started=now,
+                hold_ends=now + BALANCE_HOLD,
+                start_delta_mv=dict(deltas),
+                samples=[],
+            )
+    elif state == BALANCE_HOLDING:
+        if soc is not None and soc < BALANCE_DROP_SOC:
+            # fell out of the full-charge window: the countdown restarts
+            for key in ("hold_started", "hold_ends", "start_delta_mv", "samples"):
+                session.pop(key, None)
+            session["state"] = BALANCE_CHARGING
+            return session
+        if deltas:
+            session["samples"].append((now, dict(deltas)))
+        samples = [s for s in session["samples"] if now - s[0] <= BALANCE_WINDOW]
+        session["samples"] = samples
+        if now >= session["hold_ends"] and samples:
+            start = session["start_delta_mv"]
+            end: dict[int, int] = {}
+            for num in start:
+                vals = [d[num] for _, d in samples if num in d]
+                if vals:
+                    end[num] = round(sum(vals) / len(vals))
+            over = {n: v for n, v in end.items() if v > BALANCE_TARGET_MV}
+            # "good progress" = every module still over target narrowed by >= 1/4
+            stuck = {n: v for n, v in over.items() if v > 0.75 * start[n]}
+            if not over:
+                state = BALANCE_BALANCED
+            elif not stuck:
+                state = BALANCE_GOOD_PROGRESS
+            else:
+                state = BALANCE_CELL_BEHIND
+            del session["samples"]
+            session.update(state=state, finished=now, end_delta_mv=end)
+            worst = stuck or over
+            if worst:
+                session["module"] = max(worst, key=worst.get)
+    return session
 
 
 # --- data event / data history (the on-device log) -------------------

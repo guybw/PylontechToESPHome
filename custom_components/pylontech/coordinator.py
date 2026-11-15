@@ -33,6 +33,7 @@ class PylontechData:
     info: dict[str, Any] = field(default_factory=dict)
     cells: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
     cell_summary: dict[int, dict[str, Any]] = field(default_factory=dict)
+    balance: dict[str, Any] = field(default_factory=dict)
     last_poll: datetime | None = None
 
 
@@ -60,6 +61,60 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         self._module_cycles: dict[int, int] = {}
         self._last_stat = 0.0
         self._empty_polls = 0
+        # force-balance session; mutated in place so PylontechData sees changes
+        self.balance: dict[str, Any] = {"state": protocol.BALANCE_IDLE}
+
+    def balance_start(self) -> None:
+        """Start (or restart) a force-balance session."""
+        self.balance.clear()
+        self.balance.update(state=protocol.BALANCE_CHARGING, started=dt_util.utcnow())
+        self.async_update_listeners()
+
+    def balance_stop(self) -> None:
+        """Abandon the force-balance session."""
+        self.balance.clear()
+        self.balance["state"] = protocol.BALANCE_IDLE
+        self.async_update_listeners()
+
+    async def _balance_tick(
+        self, system: dict[str, Any], modules: dict[int, dict[str, Any]]
+    ) -> None:
+        if self.balance["state"] not in (
+            protocol.BALANCE_CHARGING,
+            protocol.BALANCE_HOLDING,
+        ):
+            return
+        protocol.balance_step(
+            self.balance,
+            dt_util.utcnow(),
+            system.get("soc"),
+            {
+                num: mod["cell_voltage_delta"]
+                for num, mod in modules.items()
+                if mod.get("cell_voltage_delta") is not None
+            },
+        )
+        # Session just ended short of target: name the cell furthest from average.
+        num = self.balance.get("module")
+        if num is None or "finished" not in self.balance:
+            return
+        self.balance["serial_number"] = self.module_info.get(num, {}).get("barcode")
+        try:
+            cells = protocol.parse_bat(
+                await self.bridge.async_command(f"bat {num}", timeout=COMMAND_TIMEOUT)
+            )
+        except PylontechConnectionError as err:
+            LOGGER.debug("`bat %s` failed: %s", num, err)
+            return
+        if not cells:
+            return
+        avg = sum(c["voltage"] for c in cells) / len(cells)
+        cell = max(cells, key=lambda c: abs(c["voltage"] - avg))
+        self.balance.update(
+            cell=cell["index"] + 1,
+            cell_voltage=cell["voltage"],
+            cell_from_average_mv=round((cell["voltage"] - avg) * 1000),
+        )
 
     async def _async_setup(self) -> None:
         try:
@@ -194,6 +249,8 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
                     cells[num] = parsed
                     cell_summary[num] = protocol.summarise_cells(parsed)
 
+        await self._balance_tick(system, modules)
+
         return PylontechData(
             system=system,
             modules=modules,
@@ -201,6 +258,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
             info=self.info,
             cells=cells,
             cell_summary=cell_summary,
+            balance=self.balance,
             last_poll=dt_util.utcnow(),
         )
 

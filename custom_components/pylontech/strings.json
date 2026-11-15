@@ -91,7 +91,19 @@
         }
       },
       "cell_voltage": { "name": "Cell {cell} voltage" },
-      "weakest_cell": { "name": "Weakest cell" }
+      "weakest_cell": { "name": "Weakest cell" },
+      "force_balance": {
+        "name": "Force balance",
+        "state": {
+          "idle": "Idle",
+          "charging": "Waiting for full charge",
+          "holding": "Holding at full",
+          "balanced": "Cells balanced",
+          "good_progress": "Good progress",
+          "cell_behind": "One cell stays behind",
+          "timed_out": "Timed out"
+        }
+      }
     },
     "binary_sensor": {
       "charging": { "name": "Charging" },
@@ -139,6 +151,26 @@
         "config_entry_id": {
           "name": "Config entry",
           "description": "Which Pylontech stack to wake (only needed if more than one is configured)."
+        }
+      }
+    },
+    "start_balance": {
+      "name": "Start force balance",
+      "description": "Starts a force-balance session: once the stack reaches 98 % it times a two-hour hold at full charge and reports the cell spread before and after on the Force balance sensor. Set your inverter to charge to 100 % and hold.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Pylontech stack to balance (only needed if more than one is configured)."
+        }
+      }
+    },
+    "stop_balance": {
+      "name": "Stop force balance",
+      "description": "Abandons the force-balance session and resets the Force balance sensor to idle.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Pylontech stack (only needed if more than one is configured)."
         }
       }
     }

@@ -41,3 +41,19 @@ wake:
       selector:
         config_entry:
           integration: pylontech
+
+start_balance:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: pylontech
+
+stop_balance:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: pylontech
