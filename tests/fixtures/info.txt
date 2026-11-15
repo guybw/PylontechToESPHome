@@ -1,0 +1,23 @@
+info
+@
+Device address      : 1
+Manufacturer        : Pylon
+Device name         : US3000C
+Board version       : V10R04
+Main Soft version   : B68.5.0.0
+Soft  version       : V2.8
+Boot  version       : V2.0
+Comm version        : V2.0
+Release Date        : 22-09-02
+Barcode             : PPTCR00000000001
+
+Specification       : 48V/74AH
+Cell Number         : 15
+Max Dischg Curr     : -90000mA
+Max Charge Curr     : 90000mA
+EPONPort rate       : 1200
+Console Port rate   : 115200
+Command completed successfully
+$$
+pylon_debug>
+pylon_debug>

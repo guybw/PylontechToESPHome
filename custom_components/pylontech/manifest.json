@@ -1,6 +1,6 @@
 {
   "domain": "pylontech",
-  "name": "Pylontech (ESPHome serial bridge)",
+  "name": "Pylontech (ESPHome bridge)",
   "after_dependencies": ["esphome", "usb"],
   "codeowners": ["@guybw"],
   "config_flow": true,

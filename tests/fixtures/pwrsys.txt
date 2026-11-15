@@ -1,0 +1,32 @@
+pwrsys
+@
+ Power System Information
+ ---------------------------------
+ System is discharging
+ Total Num                : 8
+ Present Num              : 8
+ Sleep Num                : 0
+ System Volt              : 50012    mV
+ System Curr              : -5760    mA
+ System RC                : 396225   mAH
+ System FCC               : 400104   mAH
+ System SOC               : 99       %
+ System SOH               : 95       %
+ Highest voltage          : 3337     mV
+ Average voltage          : 3334     mV
+ Lowest voltage           : 3329     mV
+ Highest temperature      : 26000    mC
+ Average temperature      : 24804    mC
+ Lowest temperature       : 22700    mC
+ Recommend chg voltage    : 53250    mV
+ Recommend dsg voltage    : 45000    mV
+ Recommend chg current    : 14800    mA
+ Recommend dsg current    : -37000   mA
+ system Recommend chg voltage: 53250    mV
+ system Recommend dsg voltage: 45000    mV
+ system Recommend chg current: 84800    mA
+ system Recommend dsg current: -212000  mA
+Command completed successfully
+$$
+pylon_debug>
+pylon_debug>

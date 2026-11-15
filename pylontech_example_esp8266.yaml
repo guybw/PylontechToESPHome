@@ -8,7 +8,7 @@
 #  It does
 #  NO protocol parsing — it just exposes the battery's RS232 console over the
 #  ESPHome Native API using the `serial_proxy` component. The Home Assistant
-#  "Pylontech (ESPHome serial bridge)" integration then does all the talking.
+#  "Pylontech (ESPHome bridge)" integration then does all the talking.
 #
 #  Requirements
 #    - ESPHome >= 2026.3.0  (the `serial_proxy` component; the HA "ESPHome

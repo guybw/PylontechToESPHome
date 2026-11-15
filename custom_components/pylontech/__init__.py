@@ -1,4 +1,4 @@
-"""The Pylontech (ESPHome serial bridge) integration."""
+"""The Pylontech (ESPHome bridge) integration."""
 
 from __future__ import annotations
 

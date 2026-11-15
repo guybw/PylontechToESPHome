@@ -1,10 +1,11 @@
-"""Config flow for the Pylontech (ESPHome serial bridge) integration."""
+"""Config flow for the Pylontech (ESPHome bridge) integration."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import voluptuous as vol
+from homeassistant.components.usb import async_scan_serial_ports
 from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
@@ -155,10 +156,6 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _scan_esphome_ports(self) -> dict[str, str]:
         """Return ``{esphome-hass URL: label}`` for unclaimed ESPHome serial ports."""
         try:
-            from homeassistant.components.usb import async_scan_serial_ports
-        except ImportError:  # HA < 2026.9
-            return {}
-        try:
             ports = await async_scan_serial_ports(self.hass)
         except Exception:  # noqa: BLE001 - `usb` not set up, scan failed, etc.
             LOGGER.debug("serial port scan unavailable", exc_info=True)
@@ -253,7 +250,7 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class PylontechOptionsFlow(OptionsFlow):
-    """Adjust the poll interval."""
+    """Adjust the poll interval, per-cell sensors and clock sync."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

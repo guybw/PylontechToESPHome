@@ -7,7 +7,7 @@
 #
 #  It does NO protocol parsing — it just exposes the battery's RS232 console
 #  over the ESPHome Native API using the `serial_proxy` component.  The Home
-#  Assistant "Pylontech (ESPHome serial bridge)" integration does the talking.
+#  Assistant "Pylontech (ESPHome bridge)" integration does the talking.
 #
 #  Pins
 #    The battery link is on GPIO18 (TX) / GPIO26 (RX), NOT GPIO1/GPIO3.  On an

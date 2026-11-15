@@ -1,0 +1,43 @@
+data history
+@
+-----------------------------------------------
+Rec Item Index  : 1796
+Time            : 26-09-01 03:48:27
+Voltage         : 49795       mV
+Current         : -1706       mA
+Temperature     : 25900       mC
+Percent         : 95          %
+Total Coulomb   : 74000       mAH
+Max Voltage     : 54000       mV
+Base State      : Dischg
+Volt. State     : Normal
+Curr. State     : Normal
+Tempr. State    : Normal
+Coul. Status    : Normal
+Power Events    : 0x0
+Bat Events      : 0x0
+Bat Protect ENA : BOV BHV BLV BUV BSLP CBOT CBHT CBLT CBUT DBOT DBHT DBLT DBUT
+Pwr Protect ENA : POV PHV PLV PUV PSLP POT PHT COC2 COC COCA DOCA DOC DOC2 SC LCOUL
+System Fault    : 0x0
+-----------------------------------------------
+
+Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  Coulomb
+0        3319     -1706    23400    Dischg       Normal       Normal       Normal       95%
+1        3320     -1706    23400    Dischg       Normal       Normal       Normal       95%
+2        3319     -1706    23400    Dischg       Normal       Normal       Normal       95%
+3        3320     -1706    23400    Dischg       Normal       Normal       Normal       95%
+4        3319     -1706    23400    Dischg       Normal       Normal       Normal       95%
+5        3320     -1706    23200    Dischg       Normal       Normal       Normal       95%
+6        3320     -1706    23200    Dischg       Normal       Normal       Normal       95%
+7        3320     -1706    23200    Dischg       Normal       Normal       Normal       95%
+8        3320     -1706    23200    Dischg       Normal       Normal       Normal       95%
+9        3319     -1706    23200    Dischg       Normal       Normal       Normal       95%
+10       3320     -1706    22800    Dischg       Normal       Normal       Normal       95%
+11       3319     -1706    22800    Dischg       Normal       Normal       Normal       95%
+12       3320     -1706    22800    Dischg       Normal       Normal       Normal       95%
+13       3320     -1706    22800    Dischg       Normal       Normal       Normal       95%
+14       3320     -1706    22800    Dischg       Normal       Normal       Normal       95%
+Command completed successfully
+$$
+pylon_debug>
+pylon_debug>

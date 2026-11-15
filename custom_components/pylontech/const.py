@@ -1,4 +1,4 @@
-"""Constants for the Pylontech (ESPHome serial bridge) integration."""
+"""Constants for the Pylontech (ESPHome bridge) integration."""
 
 from __future__ import annotations
 

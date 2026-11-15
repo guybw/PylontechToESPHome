@@ -17,19 +17,6 @@ similar.
 
 ---
 
-## Ready-made units for sale
-
-**As of 12 November 2026 I have a number of ready-made units for sale (UK).**
-Each one is an ESP32 board on an RS232/RS485 hat, pre-flashed with the
-[ESP32 example](pylontech_example_esp32.yaml), in a 3D-printed case. It has
-an RJ11 socket (US2000B) and an RJ45 socket (US2000C / US3000C / US5000 and
-newer) for the battery, plus a spare RS485 screw terminal. With one of these,
-skip Part 1 and go straight to [Part 2](#part-2--install-the-home-assistant-integration).
-
-Email `guybw` at `hotmail` dot `com`. They are £20 + postage.
-
----
-
 ## How it works
 
 ```
@@ -162,7 +149,7 @@ serial_proxy:
 1. **Settings → Marketplace → Add from link**.
 2. Enter `https://github.com/guybw/PylontechToESPHome` (the first time, approve
    the GitHub sign-in it asks for).
-3. Install **Pylontech (ESPHome serial bridge)**, then restart Home Assistant.
+3. Install **Pylontech (ESPHome bridge)**, then restart Home Assistant.
 
 Installed it through HACS before? The 2026.11 update moves it into the
 Marketplace for you.
@@ -181,7 +168,7 @@ Assistant `config/custom_components/` folder, then restart.
 **Settings → Devices & services → Add integration → “Pylontech (ESPHome serial
 bridge)”**.
 
-**If you adopted the ESP in the ESPHome integration** (Part 1, step 7), its
+**If you adopted the ESP in the ESPHome integration** (Part 1, step 6), its
 serial port is offered in a dropdown — pick
 **`<device>: <model> (Pylontech Console)`** and the host, API port and
 encryption key are filled in from ESPHome. Nothing else to enter. This is the
@@ -283,6 +270,25 @@ full power-down.
 after a full power-off, then switch back to 115200. Runs automatically after a
 few failed polls; this is the manual trigger.
 
+**`pylontech.start_balance`** / **`pylontech.stop_balance`** — run a force-balance
+session. The BMS only balances cells at the top of the charge, so there is no
+battery command for this: you set the inverter to charge to 100 % and hold, and
+the integration times and scores the hold on the **Force balance** sensor:
+
+| State | |
+|---|---|
+| `charging` | waiting for the stack to reach 98 % (gives up after 48 h → `timed_out`) |
+| `holding` | two-hour hold at full; dropping below 95 % restarts the countdown |
+| `balanced` | every module within 30 mV at the end of the hold |
+| `good_progress` | spread narrowed by at least a quarter, not yet closed — run it again in a few days |
+| `cell_behind` | a module did not close up; attributes name the `module`, `cell`, `cell_from_average_mv` and `serial_number` |
+
+Attributes carry `start_delta_mv` / `end_delta_mv` per module (end = average
+over the last 15 minutes of the hold) and `hold_ends`. Use the sensor's state in
+an automation to switch your inverter to force-charge while it is `charging` /
+`holding` and back afterwards. A session does not survive a Home Assistant
+restart or an options change.
+
 ---
 
 ## Troubleshooting
@@ -365,6 +371,19 @@ time). Useful commands: `info`, `info N`, `pwrsys`, `pwr`, `bat N`, `stat`,
 
 ---
 
+## Ready-made units for sale
+
+**As of 12 November 2026 I have a number of ready-made units for sale (UK).**
+Each one is an ESP32 board on an RS232/RS485 hat, pre-flashed with the
+[ESP32 example](pylontech_example_esp32.yaml), in a 3D-printed case. It has
+an RJ11 socket (US2000B) and an RJ45 socket (US2000C / US3000C / US5000 and
+newer) for the battery, plus a spare RS485 screw terminal. With one of these,
+skip Part 1 and go straight to [Part 2](#part-2--install-the-home-assistant-integration).
+
+Email `guybw` at `hotmail` dot `com`. They are £20 + postage.
+
+---
+
 ## Legacy (the old way)
 
 `legacy/` holds the original approach: a single ESPHome YAML that parsed the
@@ -391,23 +410,3 @@ event log, and clock sync. If you were running the old YAML, move to
   verdict here follows its method. If a pack is misbehaving, run it.
 
 Got it working? Please open an issue and say so.
-
----
-
-<sub>
-
-**Keywords:** Pylontech Home Assistant integration · Pylontech ESPHome · Pylontech
-US2000 US2000B US2000C US2KBPL US3000 US3000C US3000D US5000 Home Assistant · Pylontech
-console RS232 reader · Pylontech BMS monitoring · read Pylontech cell voltages
-Home Assistant · Pylontech state of health SoH · Pylontech cycle count · Pylontech
-event log / history log · Pylontech `pwrsys` `pwr` `bat` `stat` `info` commands ·
-Pylontech `data event` parser · ESPHome `serial_proxy` example · ESP8266 ESP-01S · ESP32 D1 Mini
-Pylontech shield / hat · Pylontech serial to WiFi bridge · Pylontech `login debug` ·
-Pylontech `pwrsys` returns nothing · Pylontech battery not responding 1200 baud
-wake-up · Pylontech mixed stack US3000C + US2000B · Pylontech cell imbalance /
-cell voltage delta / cell balancing · Pylontech SysError System Fault 0x200 ·
-Pylontech set time / RTC / DS3231 · Pylontech BatteryView alternative · Pylontech
-Type C protocol · Pylontech aioesphomeapi · Pylontech HACS · monitor Pylontech
-without Victron / without CAN bus · Pylontech per-cell monitoring Home Assistant.
-
-</sub>

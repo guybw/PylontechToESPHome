@@ -1,0 +1,43 @@
+data event
+@
+-----------------------------------------------
+Item Index      : 1287
+Time            : 25-12-17 10:07:02
+Voltage         : 53124       mV
+Current         : 856         mA
+Temperature     : 30000       mC
+Percent         : 99          %
+Total Coulomb   : 74000       mAH
+Max Voltage     : 54000       mV
+Base State      : Charge
+Volt. State     : Normal
+Curr. State     : Normal
+Tempr. State    : Normal
+Coul. Status    : Normal
+Power Events    : 0x0
+Bat Events      : 0x2        BHV
+Bat Protect ENA : BOV BHV BLV BUV BSLP CBOT CBHT CBLT CBUT DBOT DBHT DBLT DBUT
+Pwr Protect ENA : POV PHV PLV PUV PSLP POT PHT COC2 COC COCA DOCA DOC DOC2 SC LCOUL
+System Fault    : 0x0
+-----------------------------------------------
+
+Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  Coulomb
+0        3556     856      19000    Charge       Normal       Normal       Normal       100%
+1        3539     856      19000    Charge       Normal       Normal       Normal       100%
+2        3575     856      19000    Charge       Normal       Normal       Normal       100%
+3        3524     856      19000    Charge       Normal       Normal       Normal       100%
+4        3600     856      19000    Charge       High         Normal       Normal       100%
+5        3547     856      18900    Charge       Normal       Normal       Normal       100%
+6        3533     856      18900    Charge       Normal       Normal       Normal       100%
+7        3496     856      18900    Charge       Normal       Normal       Normal       99%
+8        3520     856      18900    Charge       Normal       Normal       Normal       100%
+9        3530     856      18900    Charge       Normal       Normal       Normal       100%
+10       3553     856      17900    Charge       Normal       Normal       Normal       100%
+11       3542     856      17900    Charge       Normal       Normal       Normal       100%
+12       3549     856      17900    Charge       Normal       Normal       Normal       100%
+13       3525     856      17900    Charge       Normal       Normal       Normal       100%
+14       3535     856      17900    Charge       Normal       Normal       Normal       100%
+Command completed successfully
+$$
+pylon_debug>
+pylon_debug>

@@ -1,5 +1,5 @@
 {
-  "name": "Pylontech (ESPHome serial bridge)",
+  "name": "Pylontech (ESPHome bridge)",
   "content_in_root": false,
   "render_readme": true,
   "homeassistant": "2026.9.0"

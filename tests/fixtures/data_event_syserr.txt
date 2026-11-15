@@ -1,0 +1,43 @@
+data event 1286
+@
+-----------------------------------------------
+Item Index      : 1286
+Time            : 24-00-00 01:00:10
+Voltage         : 33090       mV
+Current         : 0           mA
+Temperature     : 12800       mC
+Percent         : 10          %
+Total Coulomb   : 74000       mAH
+Max Voltage     : 54000       mV
+Base State      : SysError
+Volt. State     : Normal
+Curr. State     : Normal
+Tempr. State    : Normal
+Coul. Status    : Unkown
+Power Events    : 0x10000000 SYSERR
+Bat Events      : 0x0
+Bat Protect ENA : BOV BHV BLV BUV BSLP CBOT CBHT CBLT CBUT DBOT DBHT DBLT DBUT
+Pwr Protect ENA : POV PHV PLV PUV PSLP POT PHT COC2 COC COCA DOCA DOC DOC2 SC LCOUL
+System Fault    : 0x200
+-----------------------------------------------
+
+Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  Coulomb
+0        3109     0        9472     Idle         Normal       Normal       Normal       10%
+1        3138     0        9472     Idle         Normal       Normal       Normal       10%
+2        3106     0        9472     Idle         Normal       Normal       Normal       10%
+3        3138     0        9472     Idle         Normal       Normal       Normal       10%
+4        3136     0        9472     Idle         Normal       Normal       Normal       10%
+5        3104     0        8976     Idle         Normal       Normal       Normal       10%
+6        3107     0        8976     Idle         Normal       Normal       Normal       10%
+7        3106     0        8976     Idle         Normal       Normal       Normal       10%
+8        3141     0        8976     Idle         Normal       Normal       Normal       10%
+9        3138     0        8976     Idle         Normal       Normal       Normal       10%
+10       3108     0        8476     Idle         Normal       Normal       Normal       10%
+11       3109     0        8476     Idle         Normal       Normal       Normal       10%
+12       3136     0        8476     Idle         Normal       Normal       Normal       10%
+13       3104     0        8476     Idle         Normal       Normal       Normal       10%
+14       3104     0        8476     Idle         Normal       Normal       Normal       10%
+Command completed successfully
+$$
+pylon_debug>
+pylon_debug>
