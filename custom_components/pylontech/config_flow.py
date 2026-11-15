@@ -18,8 +18,10 @@ from homeassistant.helpers.service_info.usb import UsbServiceInfo
 from yarl import URL
 
 from .bridge import PylontechBridge, PylontechConnectionError
+from .dashboard import async_create_dashboard, request_dashboard
 from .const import (
     CONF_CELL_SENSORS,
+    CONF_CREATE_DASHBOARD,
     CONF_ENCRYPTION_KEY,
     CONF_PROXY_NAME,
     CONF_SYNC_TIME,
@@ -44,6 +46,7 @@ STEP_MANUAL_SCHEMA = vol.Schema(
         vol.Required(CONF_ENCRYPTION_KEY): str,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
         vol.Optional(CONF_PROXY_NAME, default=DEFAULT_PROXY_NAME): str,
+        vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool,
     }
 )
 
@@ -77,7 +80,9 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 result, error = await self._validate_and_create(
-                    *resolved, device_url=choice
+                    *resolved,
+                    device_url=choice,
+                    create_dashboard=user_input.get(CONF_CREATE_DASHBOARD, False),
                 )
                 if result is not None:
                     return result
@@ -86,7 +91,12 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
         options = {**self._ports, MANUAL_CHOICE: "Enter connection details manually..."}
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_DEVICE): vol.In(options)}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_DEVICE): vol.In(options),
+                    vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool,
+                }
+            ),
             errors=errors,
         )
 
@@ -103,6 +113,7 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
                 user_input[CONF_ENCRYPTION_KEY],
                 user_input[CONF_PROXY_NAME],
                 device_url=None,
+                create_dashboard=user_input.get(CONF_CREATE_DASHBOARD, False),
             )
             if result is not None:
                 return result
@@ -139,7 +150,9 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 result, error = await self._validate_and_create(
-                    *resolved, device_url=self._usb_url
+                    *resolved,
+                    device_url=self._usb_url,
+                    create_dashboard=user_input.get(CONF_CREATE_DASHBOARD, False),
                 )
                 if result is not None:
                     return result
@@ -147,6 +160,9 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="confirm",
+            data_schema=vol.Schema(
+                {vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool}
+            ),
             description_placeholders={"name": self._usb_label or ""},
             errors=errors,
         )
@@ -204,6 +220,7 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
         proxy_name: str,
         *,
         device_url: str | None,
+        create_dashboard: bool = False,
     ) -> tuple[ConfigFlowResult | None, str]:
         """Open the bridge once to check it, then create the entry.
 
@@ -238,6 +255,9 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         if device_url is not None:
             data[CONF_DEVICE] = device_url
+        if create_dashboard:
+            # built in async_setup_entry, once the entities exist
+            request_dashboard(self.hass, host)
         return (
             self.async_create_entry(title=f"Pylontech ({host})", data=data),
             "",
@@ -250,12 +270,18 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class PylontechOptionsFlow(OptionsFlow):
-    """Adjust the poll interval, per-cell sensors and clock sync."""
+    """Adjust the poll interval, per-cell sensors and clock sync; (re)build the dashboard."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
+            if user_input.pop(CONF_CREATE_DASHBOARD, False):
+                # The entities already exist, and saving unchanged options does
+                # not reload the entry, so build it right away.
+                self.hass.async_create_task(
+                    async_create_dashboard(self.hass, self.config_entry)
+                )
             return self.async_create_entry(data=user_input)
 
         opts = self.config_entry.options
@@ -277,6 +303,7 @@ class PylontechOptionsFlow(OptionsFlow):
                         CONF_SYNC_TIME,
                         default=opts.get(CONF_SYNC_TIME, False),
                     ): bool,
+                    vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool,
                 }
             ),
         )

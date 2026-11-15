@@ -23,6 +23,9 @@ async def async_get_config_entry_diagnostics(
         "entry_data": async_redact_data(dict(entry.data), TO_REDACT),
         "options": dict(entry.options),
         "bridge_available": coordinator.bridge.available,
+        "high_voltage": coordinator.hv,
         "info": coordinator.info,
+        "module_info": coordinator.module_info,
+        "tracker": coordinator.tracker,
         "data": asdict(coordinator.data) if coordinator.data else None,
     }

@@ -17,18 +17,21 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
+from homeassistant.util import dt as dt_util
 
 from . import PylontechConfigEntry
 from .const import CONF_CELL_SENSORS
 from .coordinator import PylontechData, PylontechDataUpdateCoordinator
 from .entity import PylontechEntity, PylontechModuleEntity, module_numbers
-from .protocol import BALANCE_STATES, HEALTH_STATES
+from .protocol import BALANCE_STATES, HEALTH_STATES, TRACK_STATES
 
 # Ah has no HA unit constant / device class.
 _AMP_HOUR = "Ah"
@@ -56,6 +59,42 @@ def _sys(key: str) -> Callable[[PylontechData], StateType]:
 
 def _mod(key: str) -> Callable[[dict[str, Any]], StateType]:
     return lambda module: module.get(key)
+
+
+def _kwh(key: str) -> Callable[[PylontechData], StateType]:
+    return lambda data: round(data.energy.get(key, 0.0) / 1000, 3)
+
+
+def _last_full_charge(data: PylontechData):
+    ts = data.tracking.get("last_full_charge")
+    return None if ts is None else dt_util.utc_from_timestamp(ts)
+
+
+def _tracking_attributes(data: PylontechData) -> dict[str, Any]:
+    attrs = {
+        k: v
+        for k, v in data.tracking.items()
+        if k not in ("state", "score", "last_full_charge")
+    }
+    attrs["last_full_charge"] = _last_full_charge(data)
+    return attrs
+
+
+# A high-voltage management unit has no `pwrsys` / `stat`, so these never get
+# a value there; `error_code` exists only there.
+_LV_ONLY_SYSTEM = {
+    "soh",
+    "full_charge_capacity",
+    "cell_voltage_avg",
+    "system_recommend_charge_voltage",
+    "system_recommend_discharge_voltage",
+    "system_recommend_charge_current",
+    "system_recommend_discharge_current",
+    "cycle_count",
+    "time_to_full",
+}
+_LV_ONLY_MODULE = {"mos_temperature", "cycle_count"}
+_HV_ONLY_SYSTEM = {"error_code"}
 
 
 SYSTEM_SENSORS: tuple[PylontechSystemSensorDescription, ...] = (
@@ -255,6 +294,80 @@ SYSTEM_SENSORS: tuple[PylontechSystemSensorDescription, ...] = (
         value_fn=lambda data: data.system.get("health"),
     ),
     PylontechSystemSensorDescription(
+        key="energy_charged",
+        translation_key="energy_charged",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        value_fn=_kwh("charged"),
+    ),
+    PylontechSystemSensorDescription(
+        key="energy_discharged",
+        translation_key="energy_discharged",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        value_fn=_kwh("discharged"),
+    ),
+    PylontechSystemSensorDescription(
+        key="stored_energy",
+        translation_key="stored_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=_sys("stored_energy"),
+    ),
+    PylontechSystemSensorDescription(
+        key="time_to_full",
+        translation_key="time_to_full",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=_sys("time_to_full"),
+    ),
+    PylontechSystemSensorDescription(
+        key="time_to_empty",
+        translation_key="time_to_empty",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=_sys("time_to_empty"),
+    ),
+    PylontechSystemSensorDescription(
+        key="balance_status",
+        translation_key="balance_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=TRACK_STATES,
+        icon="mdi:scale-balance",
+        value_fn=lambda data: data.tracking.get("state"),
+        attributes_fn=_tracking_attributes,
+    ),
+    PylontechSystemSensorDescription(
+        key="balance_score",
+        translation_key="balance_score",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:scale-balance",
+        value_fn=lambda data: data.tracking.get("score"),
+    ),
+    PylontechSystemSensorDescription(
+        key="last_full_charge",
+        translation_key="last_full_charge",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_last_full_charge,
+    ),
+    PylontechSystemSensorDescription(
+        key="error_code",
+        translation_key="error_code",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:alert-circle-outline",
+        value_fn=_sys("error_code"),
+    ),
+    PylontechSystemSensorDescription(
         key="force_balance",
         translation_key="force_balance",
         device_class=SensorDeviceClass.ENUM,
@@ -405,12 +518,20 @@ async def async_setup_entry(
     """Set up Pylontech sensors."""
     coordinator = entry.runtime_data
 
+    hv = coordinator.hv
+    skip_system = _LV_ONLY_SYSTEM if hv else _HV_ONLY_SYSTEM
+    skip_module = _LV_ONLY_MODULE if hv else set()
+
     entities: list[SensorEntity] = [
-        PylontechSystemSensor(coordinator, desc) for desc in SYSTEM_SENSORS
+        PylontechSystemSensor(coordinator, desc)
+        for desc in SYSTEM_SENSORS
+        if desc.key not in skip_system
     ]
     for module in module_numbers(coordinator):
         entities.extend(
-            PylontechModuleSensor(coordinator, module, desc) for desc in MODULE_SENSORS
+            PylontechModuleSensor(coordinator, module, desc)
+            for desc in MODULE_SENSORS
+            if desc.key not in skip_module
         )
 
     if coordinator.config_entry.options.get(CONF_CELL_SENSORS):

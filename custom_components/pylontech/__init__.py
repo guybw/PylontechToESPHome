@@ -15,6 +15,8 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.storage import Store
 from yarl import URL
 
 from .bridge import PylontechBridge
@@ -27,8 +29,11 @@ from .const import (
     DEFAULT_PROXY_NAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    LOGGER,
 )
-from .coordinator import PylontechDataUpdateCoordinator
+from .coordinator import STORE_VERSION, PylontechDataUpdateCoordinator
+from .dashboard import async_create_dashboard, take_dashboard_request
+from .frontend import async_register_frontend
 from .services import async_register_services
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
@@ -61,6 +66,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: PylontechConfigEntry) ->
         manufacturer="Pylontech",
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Bundled battery card: in the card picker without adding a resource.
+    try:
+        await async_register_frontend(hass)
+    except Exception as err:  # noqa: BLE001 - never let the card stop the integration
+        LOGGER.warning("Could not register the bundled battery card: %s", err)
+
+    if take_dashboard_request(hass, entry.data[CONF_HOST]):
+        # Ticked in the setup form. The entities are registered by now; wait
+        # for HA to finish starting so the dashboards component is ready.
+        async def _create_dashboard(_hass: HomeAssistant) -> None:
+            await async_create_dashboard(hass, entry)
+
+        entry.async_on_unload(async_at_started(hass, _create_dashboard))
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     async_register_services(hass)
     return True
@@ -124,6 +143,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: PylontechConfigEntry) -
     if unloaded:
         await entry.runtime_data.async_shutdown()
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: PylontechConfigEntry) -> None:
+    """Delete the stored energy counters / balance history with the entry."""
+    await Store(hass, STORE_VERSION, f"{DOMAIN}.{entry.entry_id}").async_remove()
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: PylontechConfigEntry) -> None:

@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -22,6 +23,11 @@ from .const import (
     STAT_REFRESH_INTERVAL,
 )
 
+STORE_VERSION = 1
+STORE_SAVE_DELAY = 120
+# energy is not integrated across a gap longer than this (restart, lost link)
+MIN_ENERGY_GAP = 300
+
 
 @dataclass
 class PylontechData:
@@ -34,11 +40,18 @@ class PylontechData:
     cells: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
     cell_summary: dict[int, dict[str, Any]] = field(default_factory=dict)
     balance: dict[str, Any] = field(default_factory=dict)
+    energy: dict[str, float] = field(default_factory=dict)
+    tracking: dict[str, Any] = field(default_factory=dict)
+    hv: bool = False
     last_poll: datetime | None = None
 
 
 class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
-    """Fetch pwrsys/pwr every interval, stat occasionally, info once."""
+    """Fetch pwrsys/pwr every interval, stat occasionally, info once.
+
+    Also keeps the state that has to outlive a restart: the energy counters,
+    the full-charge tracker and a running force-balance session.
+    """
 
     def __init__(
         self,
@@ -63,17 +76,41 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         self._empty_polls = 0
         # force-balance session; mutated in place so PylontechData sees changes
         self.balance: dict[str, Any] = {"state": protocol.BALANCE_IDLE}
+        # True once a `pwr` reply shows the high-voltage layout (experimental)
+        self.hv = False
+        # lifetime energy in Wh and the full-charge tracker; both persisted
+        self.energy: dict[str, float] = {"charged": 0.0, "discharged": 0.0}
+        self.tracker: dict[str, Any] = {}
+        self._prev_power: float | None = None
+        self._prev_time = 0.0
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORE_VERSION, f"{DOMAIN}.{entry.entry_id}"
+        )
+        self._store_loaded = False
+
+    def _store_data(self) -> dict[str, Any]:
+        return {
+            "energy": self.energy,
+            "tracker": self.tracker,
+            "balance": protocol.balance_dump(self.balance),
+        }
+
+    def _save_soon(self) -> None:
+        if self._store_loaded:
+            self._store.async_delay_save(self._store_data, STORE_SAVE_DELAY)
 
     def balance_start(self) -> None:
         """Start (or restart) a force-balance session."""
         self.balance.clear()
         self.balance.update(state=protocol.BALANCE_CHARGING, started=dt_util.utcnow())
+        self._save_soon()
         self.async_update_listeners()
 
     def balance_stop(self) -> None:
         """Abandon the force-balance session."""
         self.balance.clear()
         self.balance["state"] = protocol.BALANCE_IDLE
+        self._save_soon()
         self.async_update_listeners()
 
     async def _balance_tick(
@@ -99,6 +136,8 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         if num is None or "finished" not in self.balance:
             return
         self.balance["serial_number"] = self.module_info.get(num, {}).get("barcode")
+        if self.hv:
+            return  # `bat N` is not a per-module command on a high-voltage stack
         try:
             cells = protocol.parse_bat(
                 await self.bridge.async_command(f"bat {num}", timeout=COMMAND_TIMEOUT)
@@ -117,6 +156,13 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         )
 
     async def _async_setup(self) -> None:
+        stored = await self._store.async_load() or {}
+        self.energy.update(stored.get("energy") or {})
+        self.tracker = stored.get("tracker") or {}
+        self.balance.clear()
+        self.balance.update(protocol.balance_load(stored.get("balance")))
+        self._store_loaded = True
+
         try:
             await self.bridge.async_start()
         except PylontechConnectionError as err:
@@ -131,7 +177,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
             probe = await self.bridge.async_command("pwr", timeout=COMMAND_TIMEOUT)
         except PylontechConnectionError:
             probe = ""
-        if not protocol.parse_pwr(probe):
+        if not protocol.parse_pwr(probe) and not protocol.is_hv_pwr(probe):
             LOGGER.debug("battery silent at setup, sending 1200-baud wake frame")
             try:
                 await self.bridge.async_wake()
@@ -161,13 +207,23 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
 
     async def _poll(self) -> PylontechData:
         try:
-            pwrsys_raw = await self.bridge.async_command("pwrsys", timeout=COMMAND_TIMEOUT)
             pwr_raw = await self.bridge.async_command("pwr", timeout=COMMAND_TIMEOUT)
+            self.hv = protocol.is_hv_pwr(pwr_raw)
+            if self.hv:
+                # High-voltage stack: one stack row in `pwr`, modules in `unit`.
+                system = protocol.parse_pwr_hv(pwr_raw)
+                modules = protocol.parse_unit_hv(
+                    await self.bridge.async_command("unit", timeout=COMMAND_TIMEOUT)
+                )
+                system["modules_present"] = len(modules)
+            else:
+                system = protocol.parse_pwrsys(
+                    await self.bridge.async_command("pwrsys", timeout=COMMAND_TIMEOUT)
+                )
+                modules = protocol.parse_pwr(pwr_raw)
         except PylontechConnectionError as err:
             raise UpdateFailed(str(err)) from err
 
-        system = protocol.parse_pwrsys(pwrsys_raw)
-        modules = protocol.parse_pwr(pwr_raw)
         if system.get("voltage") is None and not modules:
             raise UpdateFailed("no data parsed from pwrsys/pwr")
 
@@ -189,7 +245,9 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         # once — and again only if a new module has appeared. Mixed stacks are
         # common (e.g. one US3000C + several US2000B), so `info` (master only)
         # must not be reused for every module.
-        if modules and len(self.module_info) < len(modules):
+        if self.hv:
+            await self._hv_identity(modules)
+        elif modules and len(self.module_info) < len(modules):
             for num in sorted(modules):
                 if num in self.module_info:
                     continue
@@ -203,7 +261,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
                     LOGGER.debug("`info %s` failed: %s", num, err)
 
         now = self.hass.loop.time()
-        if now - self._last_stat > STAT_REFRESH_INTERVAL.total_seconds():
+        if not self.hv and now - self._last_stat > STAT_REFRESH_INTERVAL.total_seconds():
             try:
                 self._stat = protocol.parse_stat(
                     await self.bridge.async_command("stat", timeout=COMMAND_TIMEOUT)
@@ -224,7 +282,7 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
         for num, mod in modules.items():
             mod["cycle_count"] = self._module_cycles.get(num)
 
-        if not self.info:
+        if not self.info and not self.hv:
             try:
                 self.info = protocol.parse_info(
                     await self.bridge.async_command("info", timeout=COMMAND_TIMEOUT)
@@ -234,7 +292,20 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
 
         cells: dict[int, list[dict[str, Any]]] = {}
         cell_summary: dict[int, dict[str, Any]] = {}
-        if self.config_entry.options.get(CONF_CELL_SENSORS) and modules:
+        want_cells = self.config_entry.options.get(CONF_CELL_SENSORS) and modules
+        if want_cells and self.hv:
+            # one `bat` lists every cell of the stack
+            try:
+                cells = protocol.parse_bat_hv(
+                    await self.bridge.async_command("bat", timeout=COMMAND_TIMEOUT),
+                    len(modules),
+                )
+            except PylontechConnectionError as err:
+                LOGGER.debug("`bat` failed: %s", err)
+            cell_summary = {
+                num: protocol.summarise_cells(parsed) for num, parsed in cells.items()
+            }
+        elif want_cells:
             for num in sorted(modules):
                 try:
                     parsed = protocol.parse_bat(
@@ -251,6 +322,43 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
 
         await self._balance_tick(system, modules)
 
+        # stored energy, time to full / empty
+        remaining = system.get("remaining_capacity")
+        voltage = system.get("voltage")
+        system["stored_energy"] = (
+            None
+            if remaining is None or voltage is None
+            else round(remaining * voltage / 1000, 2)
+        )
+        system["time_to_full"], system["time_to_empty"] = protocol.time_remaining(
+            remaining, system.get("full_charge_capacity"), system.get("current")
+        )
+
+        # energy in / out
+        power = system.get("power")
+        protocol.integrate_energy(
+            self.energy,
+            self._prev_power,
+            power,
+            now - self._prev_time,
+            max(3 * self.update_interval.total_seconds(), MIN_ENERGY_GAP),
+        )
+        self._prev_power, self._prev_time = power, now
+
+        # every full charge is recorded, with or without a force-balance session
+        now_ts = dt_util.utcnow().timestamp()
+        protocol.track_full_charge(
+            self.tracker,
+            now_ts,
+            system.get("soc"),
+            {
+                num: mod["cell_voltage_delta"]
+                for num, mod in modules.items()
+                if mod.get("cell_voltage_delta") is not None
+            },
+        )
+        self._save_soon()
+
         return PylontechData(
             system=system,
             modules=modules,
@@ -259,9 +367,29 @@ class PylontechDataUpdateCoordinator(DataUpdateCoordinator[PylontechData]):
             cells=cells,
             cell_summary=cell_summary,
             balance=self.balance,
+            energy=self.energy,
+            tracking=protocol.balance_summary(self.tracker, now_ts),
+            hv=self.hv,
             last_poll=dt_util.utcnow(),
         )
 
+    async def _hv_identity(self, modules: dict[int, dict[str, Any]]) -> None:
+        """Management-unit identity and module barcodes for a high-voltage stack."""
+        if self.info or not modules:
+            return
+        try:
+            raw = await self.bridge.async_command("info", timeout=COMMAND_TIMEOUT)
+        except PylontechConnectionError as err:
+            LOGGER.debug("`info` failed: %s", err)
+            return
+        self.info = protocol.parse_info(raw)
+        # `info` counts BMUs from the top of the tower, `unit` from the bottom
+        barcodes = protocol.parse_info_bmus(raw)
+        for num in modules:
+            self.module_info[num] = {"barcode": barcodes.get(len(modules) - num)}
+
     async def async_shutdown(self) -> None:
         await super().async_shutdown()
+        if self._store_loaded:
+            await self._store.async_save(self._store_data())
         await self.bridge.async_stop()

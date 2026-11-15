@@ -5,7 +5,11 @@
         "title": "Add a Pylontech serial bridge",
         "description": "Pick the ESPHome serial port wired to your Pylontech console. Host, API port and encryption key are taken from the ESPHome device. Choose manual entry if it isn't listed.",
         "data": {
-          "device": "Serial port"
+          "device": "Serial port",
+          "create_dashboard": "Create Pylontech dashboard"
+        },
+        "data_description": {
+          "create_dashboard": "Adds a Pylontech dashboard to the sidebar with the battery card, energy, balance and history. You can edit or delete it afterwards."
         }
       },
       "manual": {
@@ -15,9 +19,11 @@
           "host": "Host",
           "encryption_key": "API encryption key",
           "port": "Port",
-          "proxy_name": "Serial port name"
+          "proxy_name": "Serial port name",
+          "create_dashboard": "Create Pylontech dashboard"
         },
         "data_description": {
+          "create_dashboard": "Adds a Pylontech dashboard to the sidebar with the battery card, energy, balance and history. You can edit or delete it afterwards.",
           "host": "IP address or hostname of the ESP (e.g. 192.168.1.50)",
           "port": "ESPHome native API port (default 6053)",
           "proxy_name": "The `name:` of the serial_proxy in the ESPHome config"
@@ -25,7 +31,13 @@
       },
       "confirm": {
         "title": "Add a Pylontech serial bridge",
-        "description": "Set up Pylontech on {name}?"
+        "description": "Set up Pylontech on {name}?",
+        "data": {
+          "create_dashboard": "Create Pylontech dashboard"
+        },
+        "data_description": {
+          "create_dashboard": "Adds a Pylontech dashboard to the sidebar with the battery card, energy, balance and history. You can edit or delete it afterwards."
+        }
       }
     },
     "error": {
@@ -44,9 +56,11 @@
         "data": {
           "scan_interval": "Poll interval (seconds)",
           "cell_sensors": "Per-cell sensors",
-          "sync_time": "Sync battery clock"
+          "sync_time": "Sync battery clock",
+          "create_dashboard": "Create / rebuild Pylontech dashboard"
         },
         "data_description": {
+          "create_dashboard": "Builds (or rebuilds) the Pylontech dashboard in the sidebar. Rebuilding replaces any edits you made to it.",
           "cell_sensors": "Adds a voltage sensor for every cell, plus a weakest-cell and balancing sensor per battery. Sends one extra 'bat N' command per battery each poll.",
           "sync_time": "Sets the battery's real-time clock to Home Assistant's time on every connect. Only affects future log timestamps."
         }
@@ -92,6 +106,23 @@
       },
       "cell_voltage": { "name": "Cell {cell} voltage" },
       "weakest_cell": { "name": "Weakest cell" },
+      "energy_charged": { "name": "Energy charged" },
+      "energy_discharged": { "name": "Energy discharged" },
+      "stored_energy": { "name": "Stored energy" },
+      "time_to_full": { "name": "Time to full" },
+      "time_to_empty": { "name": "Time to empty" },
+      "balance_status": {
+        "name": "Balance status",
+        "state": {
+          "balanced": "Balanced",
+          "under_watch": "Under watch",
+          "balance_recommended": "Balance recommended",
+          "weak_cell_suspected": "Weak cell suspected"
+        }
+      },
+      "balance_score": { "name": "Balance score" },
+      "last_full_charge": { "name": "Last full charge" },
+      "error_code": { "name": "Error code" },
       "force_balance": {
         "name": "Force balance",
         "state": {
@@ -108,7 +139,10 @@
     "binary_sensor": {
       "charging": { "name": "Charging" },
       "problem": { "name": "Problem" },
-      "balancing": { "name": "Balancing" }
+      "balancing": { "name": "Balancing" },
+      "voltage_alarm": { "name": "Voltage alarm" },
+      "current_alarm": { "name": "Current alarm" },
+      "temperature_alarm": { "name": "Temperature alarm" }
     }
   },
   "services": {

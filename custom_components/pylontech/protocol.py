@@ -184,6 +184,19 @@ def _pwr_int(fields: dict[str, str], name: str) -> int | None:
     return None if v in (None, "-") else int(v)
 
 
+def _abnormal(*states: str | None) -> bool:
+    return any(s not in (None, "-", _NORMAL) for s in states)
+
+
+def _add_alarms(mod: dict[str, Any]) -> None:
+    """Split the module's state columns into voltage / current / temperature alarms."""
+    mod["voltage_alarm"] = _abnormal(mod.get("volt_state"), mod.get("bv_state"))
+    mod["current_alarm"] = _abnormal(mod.get("curr_state"))
+    mod["temperature_alarm"] = _abnormal(
+        mod.get("temp_state"), mod.get("bt_state"), mod.get("mt_state")
+    )
+
+
 def parse_pwr(raw: str) -> dict[int, dict[str, Any]]:
     """Parse ``pwr`` into ``{module_number: {metrics...}}`` for present modules.
 
@@ -238,6 +251,7 @@ def parse_pwr(raw: str) -> dict[int, dict[str, Any]]:
             "timestamp": fields.get("Time"),
             "problem": any(s not in (None, _NORMAL) for s in states),
         }
+        _add_alarms(modules[int(tokens[0])])
     return modules
 
 
@@ -269,6 +283,9 @@ def parse_info(raw: str) -> dict[str, Any]:
 
     out: dict[str, Any] = {dest: raw_kv[src] for src, dest in _INFO_MAP.items() if src in raw_kv}
 
+    # a high-voltage management unit leaves "Barcode" empty
+    if "barcode" not in out and "Module Barcode" in raw_kv:
+        out["barcode"] = raw_kv["Module Barcode"]
     if "Cell Number" in raw_kv and raw_kv["Cell Number"].isdigit():
         out["cell_count"] = int(raw_kv["Cell Number"])
     for src, dest in (("Max Charge Curr", "max_charge_current"),
@@ -604,4 +621,379 @@ def parse_data_record(raw: str) -> dict[str, Any]:
     )
     if cells:
         out["cells"] = cells
+    return out
+
+
+# --- energy counters / time remaining ---------------------------------------
+
+
+def integrate_energy(
+    totals: dict[str, float],
+    prev_power: float | None,
+    power: float | None,
+    dt_s: float,
+    max_gap_s: float,
+) -> None:
+    """Add one poll interval to ``totals`` (Wh, keys ``charged``/``discharged``).
+
+    Trapezoid between the two power readings. A gap longer than ``max_gap_s``
+    (restart, lost link) is skipped instead of guessed.
+    """
+    if prev_power is None or power is None or not 0 < dt_s <= max_gap_s:
+        return
+    wh = (prev_power + power) / 2 * dt_s / 3600
+    if wh > 0:
+        totals["charged"] = totals.get("charged", 0.0) + wh
+    else:
+        totals["discharged"] = totals.get("discharged", 0.0) - wh
+
+
+_MIN_ETA_CURRENT_A = 0.5
+
+
+def time_remaining(
+    remaining_ah: float | None, full_ah: float | None, current_a: float | None
+) -> tuple[float | None, float | None]:
+    """Return ``(hours to full, hours to empty)`` at the present current."""
+    if remaining_ah is None or current_a is None:
+        return None, None
+    if current_a >= _MIN_ETA_CURRENT_A and full_ah is not None:
+        return round(max(full_ah - remaining_ah, 0.0) / current_a, 2), None
+    if current_a <= -_MIN_ETA_CURRENT_A:
+        return None, round(remaining_ah / -current_a, 2)
+    return None, None
+
+
+# --- automatic full-charge / balance tracking -------------------------------
+#
+# Every time the stack sits at full charge the BMS gets a chance to balance.
+# We record each of those windows (cell spread per module at its start and
+# averaged over its last 15 minutes) without anyone starting a session, and
+# turn the latest one into a verdict and a score.
+#
+# The tracker is plain JSON (epoch seconds, string module keys) so it can be
+# stored as-is.
+
+TRACK_WEAK_MV = 100
+TRACK_STALE = timedelta(days=14)
+TRACK_KEEP = timedelta(days=30)
+
+TRACK_BALANCED = "balanced"
+TRACK_UNDER_WATCH = "under_watch"
+TRACK_RECOMMENDED = "balance_recommended"
+TRACK_WEAK_CELL = "weak_cell_suspected"
+TRACK_STATES = [TRACK_BALANCED, TRACK_UNDER_WATCH, TRACK_RECOMMENDED, TRACK_WEAK_CELL]
+
+
+def _window_end(window: dict[str, Any]) -> dict[str, int]:
+    """Per-module spread averaged over the window's last 15 minutes at full."""
+    samples = window["samples"]
+    if not samples:
+        return dict(window["start_delta_mv"])
+    last = samples[-1][0]
+    recent = [d for ts, d in samples if last - ts <= BALANCE_WINDOW.total_seconds()]
+    out: dict[str, int] = {}
+    for num in window["start_delta_mv"]:
+        vals = [d[num] for d in recent if num in d]
+        if vals:
+            out[num] = round(sum(vals) / len(vals))
+    return out
+
+
+def _closed(window: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "started": window["started"],
+        "ended": window.get("last", window["started"]),
+        "start_delta_mv": window["start_delta_mv"],
+        "end_delta_mv": _window_end(window),
+    }
+
+
+def track_full_charge(
+    tracker: dict[str, Any], now: float, soc: int | None, deltas: dict[int, int]
+) -> None:
+    """Advance the full-charge tracker by one poll (mutates ``tracker``)."""
+    history = tracker.setdefault("history", [])
+    window = tracker.get("window")
+    if soc is None:
+        return
+    spread = {str(num): mv for num, mv in deltas.items()}
+    if window is None:
+        if soc >= BALANCE_HOLD_SOC and spread:
+            tracker["window"] = {
+                "started": now,
+                "start_delta_mv": spread,
+                "samples": [[now, spread]],
+            }
+        return
+    if soc < BALANCE_DROP_SOC:
+        history.append(_closed(window))
+        cutoff = now - TRACK_KEEP.total_seconds()
+        tracker["history"] = [h for h in history if h["ended"] >= cutoff]
+        tracker["window"] = None
+    elif soc >= BALANCE_HOLD_SOC and spread:
+        window["samples"].append([now, spread])
+        cutoff = now - BALANCE_WINDOW.total_seconds()
+        window["samples"] = [s for s in window["samples"] if s[0] >= cutoff]
+        window["last"] = now
+
+
+def balance_score(worst_mv: int) -> int:
+    """100 at or under the 30 mV target, falling in a straight line to 0 at 200 mV."""
+    if worst_mv <= BALANCE_TARGET_MV:
+        return 100
+    return max(0, round(100 - (worst_mv - BALANCE_TARGET_MV) * 100 / 170))
+
+
+def balance_summary(tracker: dict[str, Any], now: float) -> dict[str, Any]:
+    """Verdict, score and details of the most recent full charge."""
+    history = tracker.get("history") or []
+    window = tracker.get("window")
+    latest = _closed(window) if window else (history[-1] if history else None)
+    out: dict[str, Any] = {
+        "state": TRACK_RECOMMENDED,
+        "score": None,
+        "at_full_charge": window is not None,
+        "full_charges_30d": len(history) + (1 if window else 0),
+    }
+    if latest is None or not latest["end_delta_mv"]:
+        return out
+    end = latest["end_delta_mv"]
+    worst_module = max(end, key=end.get)
+    worst = end[worst_module]
+    duration = latest["ended"] - latest["started"]
+    out.update(
+        score=balance_score(worst),
+        last_full_charge=latest["ended"],
+        duration_minutes=round(duration / 60),
+        start_delta_mv=latest["start_delta_mv"],
+        end_delta_mv=end,
+        worst_module=int(worst_module),
+        worst_delta_mv=worst,
+    )
+    if window is None and now - latest["ended"] > TRACK_STALE.total_seconds():
+        out["state"] = TRACK_RECOMMENDED
+    elif worst <= BALANCE_TARGET_MV:
+        out["state"] = TRACK_BALANCED
+    elif worst > TRACK_WEAK_MV and duration >= BALANCE_HOLD.total_seconds():
+        out["state"] = TRACK_WEAK_CELL
+    else:
+        out["state"] = TRACK_UNDER_WATCH
+    return out
+
+
+# --- force-balance session <-> JSON (so a session survives a restart) -------
+
+_SESSION_TIMES = ("started", "hold_started", "hold_ends", "finished")
+_SESSION_DELTAS = ("start_delta_mv", "end_delta_mv")
+
+
+def balance_dump(session: dict[str, Any]) -> dict[str, Any]:
+    """Turn a force-balance session into plain JSON."""
+    out = dict(session)
+    for key in _SESSION_TIMES:
+        if key in out:
+            out[key] = out[key].isoformat()
+    if "samples" in out:
+        out["samples"] = [[ts.isoformat(), d] for ts, d in out["samples"]]
+    return out
+
+
+def balance_load(stored: dict[str, Any] | None) -> dict[str, Any]:
+    """Rebuild a force-balance session from :func:`balance_dump` output."""
+    if not stored or stored.get("state") not in BALANCE_STATES:
+        return {"state": BALANCE_IDLE}
+    out = dict(stored)
+    for key in _SESSION_TIMES:
+        if key in out:
+            out[key] = datetime.fromisoformat(out[key])
+    for key in _SESSION_DELTAS:
+        if key in out:
+            out[key] = {int(k): v for k, v in out[key].items()}
+    if "samples" in out:
+        out["samples"] = [
+            (datetime.fromisoformat(ts), {int(k): v for k, v in d.items()})
+            for ts, d in out["samples"]
+        ]
+    return out
+
+
+# --- high-voltage stacks (EXPERIMENTAL) ------------------------------------
+#
+# Force H / PowerCube towers: a management unit (SC0500/SC1000) in front of
+# H48050-style modules. Same console, different tables: ``pwr`` is a single
+# stack row, ``unit`` has one row per module and ``bat`` lists every cell of
+# the stack. There is no ``pwrsys`` and no SOH / cycle count.
+#
+# Layouts taken from the captures in mletenay/home-assistant-pylontech (MIT),
+# see tests/fixtures/hv/. Not yet run against a live stack.
+
+_HV_COULOMB = re.compile(r"(\d+)%\s+(\d+)\s*(?:mAH|WH)")
+
+
+def is_hv_pwr(raw: str) -> bool:
+    """True if a ``pwr`` reply is the high-voltage single-row layout."""
+    for line in _body(raw):
+        tokens = line.split()
+        if tokens and tokens[0] == "Power":
+            return False
+        if tokens and tokens[0] == "Volt" and "UVlow" in tokens:
+            return True
+    return False
+
+
+def _hv_table(raw: str, lead: str) -> tuple[dict[str, int], list[dict[str, str]]]:
+    """Return ``(key: value lines above the table, rows keyed by header name)``."""
+    head: dict[str, int] = {}
+    columns: list[str] | None = None
+    rows: list[dict[str, str]] = []
+    for line in _body(raw):
+        if not line.strip():
+            continue
+        if columns is None:
+            tokens = line.replace("Err Code", "Err.Code").split()
+            if tokens[0] == lead:
+                columns = tokens
+            else:
+                m = _KV_NUM.match(line)
+                if m:
+                    head[m["k"].strip()] = int(m["v"])
+            continue
+        # "15%   7621 mAH" is one header column: fold it into a single token
+        tokens = _split_pwr_row(_HV_COULOMB.sub(r"\1%|\2", line))
+        if tokens[0].lstrip("-").isdigit():
+            rows.append(dict(zip(columns, tokens)))
+    return head, rows
+
+
+def _hv_coulomb(token: str | None) -> tuple[int | None, float | None]:
+    """Split a folded ``15%|7621`` token into (percent, Ah)."""
+    if not token or "|" not in token:
+        return None, None
+    pct, mah = token.split("|", 1)
+    return int(pct.rstrip("%")), _ah(int(mah))
+
+
+def _hv_common(f: dict[str, str]) -> dict[str, Any]:
+    vlow, vhigh = _pwr_int(f, "BVlow"), _pwr_int(f, "BVhigh")
+    voltage = _volt(_pwr_int(f, "Volt"))
+    current = _amp(_pwr_int(f, "Curr"))
+    soc, remaining = _hv_coulomb(f.get("CoulombAH"))
+    return {
+        "voltage": voltage,
+        "current": current,
+        "power": None if (voltage is None or current is None) else round(voltage * current, 1),
+        "soc": soc,
+        "remaining_capacity": remaining,
+        "cell_voltage_min": _volt(vlow),
+        "cell_voltage_max": _volt(vhigh),
+        "cell_voltage_delta": None if (vlow is None or vhigh is None) else vhigh - vlow,
+        "base_state": f.get("Base.St"),
+        "volt_state": f.get("Volt.St"),
+        "curr_state": f.get("Curr.St"),
+        "temp_state": f.get("Temp.St"),
+        "bv_state": f.get("B.V.St"),
+        "bt_state": f.get("B.T.St"),
+        "timestamp": f.get("Time"),
+    }
+
+
+def parse_pwr_hv(raw: str) -> dict[str, Any]:
+    """Parse a high-voltage ``pwr`` reply into stack metrics (``pwrsys`` keys)."""
+    head, rows = _hv_table(raw, "Volt")
+    if not rows:
+        return {}
+    f = rows[0]
+    data = _hv_common(f)
+    error_code = f.get("Err.Code")
+    data.update(
+        temperature_min=_temp(_pwr_int(f, "BTlow")),
+        temperature_max=_temp(_pwr_int(f, "BThigh")),
+        temperature_avg=_temp(head.get("AverageTempr")),
+        error_code=error_code,
+        charging=None if data["current"] is None else data["current"] > 0.05,
+        problem=_abnormal(
+            data["volt_state"],
+            data["curr_state"],
+            data["temp_state"],
+            data["bv_state"],
+            data["bt_state"],
+            f.get("U.V.St"),
+            f.get("U.T.St"),
+        )
+        or (error_code is not None and _hex_nonzero(error_code)),
+    )
+    return data
+
+
+def parse_unit_hv(raw: str) -> dict[int, dict[str, Any]]:
+    """Parse a high-voltage ``unit`` reply into ``{module: metrics}`` (``pwr`` keys)."""
+    _, rows = _hv_table(raw, "Index")
+    modules: dict[int, dict[str, Any]] = {}
+    for f in rows:
+        mod = _hv_common(f)
+        mod.update(
+            present=True,
+            temperature=_temp(_pwr_int(f, "Tempr")),
+            cell_temp_min=_temp(_pwr_int(f, "BTlow")),
+            cell_temp_max=_temp(_pwr_int(f, "BThigh")),
+            mos_temperature=None,
+            mt_state=None,
+        )
+        mod["problem"] = _abnormal(mod["volt_state"], mod["temp_state"])
+        _add_alarms(mod)
+        modules[int(f["Index"])] = mod
+    return modules
+
+
+_HV_BAT_ROW = re.compile(
+    r"^\s*(?P<idx>\d+)\s+(?P<volt>\d+)\s+(?P<curr>-?\d+)\s+(?P<tempr>-?\d+)\s+"
+    r"\S+\s+\S+\s+.*?(?P<bal>[YN])\s*$"
+)
+
+
+def parse_bat_hv(raw: str, module_count: int) -> dict[int, list[dict[str, Any]]]:
+    """Parse a high-voltage ``bat`` reply (every cell of the stack), split per module.
+
+    Cells and modules are both numbered from the bottom of the tower, so
+    module 1 owns the first block of cells.
+    """
+    cells = []
+    for line in _body(raw):
+        m = _HV_BAT_ROW.match(line)
+        if m:
+            cells.append({"voltage": _volt(int(m["volt"])), "balancing": m["bal"] == "Y"})
+    if not module_count or not cells or len(cells) % module_count:
+        return {}
+    per = len(cells) // module_count
+    return {
+        num: [
+            {"index": i, **cell}
+            for i, cell in enumerate(cells[(num - 1) * per : num * per])
+        ]
+        for num in range(1, module_count + 1)
+    }
+
+
+_BMU_HEADER = re.compile(r"^\s*BMU\s+(\d+)\s+Barcode")
+_BMU_MODULE = re.compile(r"^\s*Module:\s*:\s*(\S+)")
+
+
+def parse_info_bmus(raw: str) -> dict[int, str]:
+    """Module barcodes from a high-voltage ``info`` reply, keyed by BMU index.
+
+    ``info`` counts BMUs from the top of the tower (BMU 0 is next to the
+    management unit); ``unit`` and ``bat`` count from the bottom.
+    """
+    out: dict[int, str] = {}
+    current: int | None = None
+    for line in _body(raw):
+        m = _BMU_HEADER.match(line)
+        if m:
+            current = int(m.group(1))
+            continue
+        m = _BMU_MODULE.match(line)
+        if m and current is not None:
+            out[current] = m.group(1)
+            current = None
     return out

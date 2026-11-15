@@ -6,7 +6,11 @@ a cell-health verdict and the battery's own event log.
 
 Works with any Pylontech that has a **Console** port and speaks the "Type C"
 text protocol: US2000B, US2000C, US2KBPL, US3000, US3000C, US3000D, US5000 and
-similar.
+similar. High-voltage towers (Force H, PowerCube) are
+[experimental](#high-voltage-stacks-experimental).
+
+**Don't want to build one?** I sell ready-made, pre-flashed units (UK, £20 +
+postage). See [Ready-made units for sale](#ready-made-units-for-sale).
 
 **In short:**
 1. Connect an ESP to the battery's Console port (through an RS232 adapter).
@@ -213,7 +217,12 @@ shows its own model / spec / firmware / serial — mixed stacks are fine).
 - Min / Average / Max cell voltage, **Cell voltage delta (mV)**
 - Min / Average / Max temperature
 - Charge cycles
+- **Energy charged / Energy discharged (kWh)** — add these to the Energy
+  dashboard as the battery's "energy going in" and "energy coming out"
+- Stored energy (kWh), **Time to full**, **Time to empty**
 - **Cell health** — `healthy` / `degrading` / `failed` / `unknown`
+- **Balance status**, **Balance score**, **Last full charge** (see
+  [Balance tracking](#balance-tracking))
 - Last update
 - Binary: **Charging**, **Problem**
 
@@ -223,13 +232,87 @@ shows its own model / spec / firmware / serial — mixed stacks are fine).
 - Min / Max cell voltage & temperature, MOSFET temperature
 - State (`Charge` / `Dischg` / `Idle` …)
 - **Cell health** (with `spread_mv` / `condition` attributes)
-- Binary: **Problem**
+- Binary: **Problem**, plus **Voltage alarm**, **Current alarm** and
+  **Temperature alarm** (the battery's own state text is in the attributes)
 
 <img src="docs/images/battery_module.png" alt="A single battery module device in Home Assistant" width="700">
 
 **Cell health** uses the cell-voltage spread, only judged when conditions are
 valid (enough load or a clean idle plateau, sensible SoC, not cold) — the
 method from [simonpasley/pylontech-battery-health](https://github.com/simonpasley/pylontech-battery-health).
+
+**Energy and time estimates.** The energy counters are added up from the stack
+power at every poll, so they start at zero when you install this version and a
+shorter poll interval makes them more exact. A gap (restart, lost link) is left
+out, not guessed. Time to full / empty divide the battery's own capacity
+figures by the present current, and only show a value above 0.5 A.
+
+### Dashboard and battery card
+
+Tick **Create Pylontech dashboard** (off by default) when you add the integration (or later
+under **Configure**) and a **Pylontech** dashboard appears in the sidebar: the
+battery card, then energy, balance and 24-hour history. It is an ordinary
+dashboard, so edit or delete it as you like; ticking the box again rebuilds it.
+
+The **Pylontech Battery** card is also in the card picker, so you can put it on
+any dashboard. It needs no configuration: it finds the stack and its batteries
+by itself. Click a battery's name for its status and alarms, **Temp** for its
+temperatures, **ΔV** for the cell heat map (needs *Per-cell sensors*), and
+anything else for its history.
+
+```yaml
+type: custom:pylontech-battery-card
+# all optional
+title: PYLONTECH
+device_id: <stack device id>   # only if you have more than one stack
+soc_warning: 30
+soc_alarm: 15
+temp_warning: 40
+temp_alarm: 50
+delta_v_warning: 30
+delta_v_alarm: 50
+```
+
+The card is adapted from
+[jtubb's Pylontech Battery Card](https://github.com/jtubb/Pylontech-Battery-Card).
+
+### Balance tracking
+
+The BMS only balances cells while the stack sits at full charge. Every time it
+does (98 % or more, until it drops below 95 %), the integration records the
+cell spread of each module at the start and averaged over the last 15 minutes.
+Nothing to start, nothing to configure.
+
+| Balance status | |
+|---|---|
+| `balanced` | every module within 30 mV at the last full charge |
+| `under_watch` | reached full, but the spread had not closed up yet |
+| `weak_cell_suspected` | still over 100 mV after two hours or more at full |
+| `balance_recommended` | no full charge in the last two weeks (or none seen yet) |
+
+**Balance score** is 100 at or under 30 mV for the worst module, falling in a
+straight line to 0 at 200 mV. Attributes on *Balance status* give the per-module
+`start_delta_mv` / `end_delta_mv`, the `worst_module`, how long the stack stayed
+full and how many full charges there were in the last 30 days.
+
+### High-voltage stacks (experimental)
+
+Force H / PowerCube towers (an SC0500 / SC1000 management unit in front of
+H48050-style modules) use the same console with different tables. The
+integration spots this from the first `pwr` reply and switches to
+`pwr` + `unit` (+ `bat` for per-cell sensors) by itself.
+
+**This has not been run on a real tower yet.** It is built and tested against
+console captures from firmware B50 and B52. If you try it, please open an issue
+with the diagnostics download either way.
+
+- You get the stack, one device per module, cell health, energy, balance
+  tracking and an **Error code** sensor.
+- The management unit reports no state of health, cycle count or full-charge
+  capacity, so those sensors (and Time to full) are not created.
+- Modules are numbered from the bottom of the tower, as the console does.
+- With per-cell sensors on, one `bat` reply covers every cell (about 10 KB for
+  eight modules). Raise `rx_buffer_size` in the ESPHome YAML to `16384`.
 
 ---
 
@@ -239,9 +322,10 @@ method from [simonpasley/pylontech-battery-health](https://github.com/simonpasle
 
 | Option | Default | Notes |
 |---|---|---|
-| **Poll interval** | 60 s | `pwrsys` + `pwr` every interval; `stat` every 30 min; `info` once. |
+| **Poll interval** | 60 s | `pwr` + `pwrsys` every interval; `stat` every 30 min; `info` once. |
 | **Per-cell sensors** | off | Adds a voltage sensor for every cell (15/module), a **Weakest cell** sensor, and a **Balancing** binary sensor per module. One extra `bat N` per module per poll. Turning it back off removes those entities. |
 | **Sync battery clock** | off | Sets the battery RTC to Home Assistant's time on every connect (see below). |
+| **Create / rebuild Pylontech dashboard** | off | One-off: builds the [dashboard](#dashboard-and-battery-card) when you press Submit. Rebuilding replaces your edits to it. |
 
 ---
 
@@ -286,8 +370,8 @@ the integration times and scores the hold on the **Force balance** sensor:
 Attributes carry `start_delta_mv` / `end_delta_mv` per module (end = average
 over the last 15 minutes of the hold) and `hold_ends`. Use the sensor's state in
 an automation to switch your inverter to force-charge while it is `charging` /
-`holding` and back afterwards. A session does not survive a Home Assistant
-restart or an options change.
+`holding` and back afterwards. A running session carries on after a Home
+Assistant restart or an options change.
 
 ---
 
@@ -380,6 +464,8 @@ an RJ11 socket (US2000B) and an RJ45 socket (US2000C / US3000C / US5000 and
 newer) for the battery, plus a spare RS485 screw terminal. With one of these,
 skip Part 1 and go straight to [Part 2](#part-2--install-the-home-assistant-integration).
 
+<img src="docs/images/ready_made_unit.jpg" alt="Ready-made unit: cased ESP32 bridge with battery lead and USB power lead" width="520"> <img src="docs/images/ready_made_unit_label.jpg" alt="Ready-made unit, label side: RJ11, RJ45 and RS485 ports" width="200">
+
 Email `guybw` at `hotmail` dot `com`. They are £20 + postage.
 
 ---
@@ -408,5 +494,11 @@ event log, and clock sync. If you were running the old YAML, move to
 - [simonpasley/pylontech-battery-health](https://github.com/simonpasley/pylontech-battery-health)
   — excellent standalone health tool (runs on Windows now); the cell-spread
   verdict here follows its method. If a pack is misbehaving, run it.
+- [jtubb/Pylontech-Battery-Card](https://github.com/jtubb/Pylontech-Battery-Card)
+  — the bundled battery card is adapted from it (MIT): the ISA-101 layout,
+  styling and heat maps are jtubb's.
+- [mletenay/home-assistant-pylontech](https://github.com/mletenay/home-assistant-pylontech)
+  — the high-voltage console captures in `tests/fixtures/hv/` come from its
+  test samples (MIT).
 
 Got it working? Please open an issue and say so.

@@ -13,6 +13,8 @@ CONF_ENCRYPTION_KEY = "encryption_key"
 CONF_PROXY_NAME = "proxy_name"
 CONF_CELL_SENSORS = "cell_sensors"
 CONF_SYNC_TIME = "sync_time"
+# a one-off action in the setup / options form, never stored
+CONF_CREATE_DASHBOARD = "create_dashboard"
 
 DEFAULT_PORT = 6053
 DEFAULT_PROXY_NAME = "Pylontech Console"
