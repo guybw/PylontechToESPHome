@@ -283,6 +283,8 @@ SYSTEM_SENSORS: tuple[PylontechSystemSensorDescription, ...] = (
         translation_key="last_update",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # changes every poll and has no unit, so it floods the logbook
+        entity_registry_enabled_default=False,
         value_fn=lambda data: data.last_poll,
     ),
     PylontechSystemSensorDescription(

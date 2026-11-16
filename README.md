@@ -223,7 +223,8 @@ shows its own model / spec / firmware / serial — mixed stacks are fine).
 - **Cell health** — `healthy` / `degrading` / `failed` / `unknown`
 - **Balance status**, **Balance score**, **Last full charge** (see
   [Balance tracking](#balance-tracking))
-- Last update
+- Last update (disabled by default — it changes on every poll and fills the
+  logbook)
 - Binary: **Charging**, **Problem**
 
 **Per module**
