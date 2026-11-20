@@ -150,10 +150,12 @@ serial_proxy:
 
 **Marketplace (recommended, Home Assistant 2026.11+)**
 
-1. **Settings → Marketplace → Add from link**.
-2. Enter `https://github.com/guybw/PylontechToESPHome` (the first time, approve
-   the GitHub sign-in it asks for).
-3. Install **Pylontech (ESPHome bridge)**, then restart Home Assistant.
+1. **Settings → Marketplace**, search for **Pylontech (ESPHome bridge)**.
+2. Install it, then restart Home Assistant.
+
+Not showing up yet? Use **Settings → Marketplace → Add from link** and enter
+`https://github.com/guybw/PylontechToESPHome` (the first time, approve the
+GitHub sign-in it asks for).
 
 Installed it through HACS before? The 2026.11 update moves it into the
 Marketplace for you.
@@ -174,8 +176,9 @@ bridge)”**.
 
 **If you adopted the ESP in the ESPHome integration** (Part 1, step 6), its
 serial port is offered in a dropdown — pick
-**`<device>: <model> (Pylontech Console)`** and the host, API port and
-encryption key are filled in from ESPHome. Nothing else to enter. This is the
+**`<device>: <model> (Pylontech Console)`** and enter the API encryption key
+(the `key:` under `api: → encryption:`). The host and API port are filled in
+from ESPHome. This is the
 same port Home Assistant lists under *Settings → System → Hardware* as
 *"connected but not used by any integration"*; setting it up here marks it in
 use. (Existing installs pick this up automatically on the first restart after

@@ -3,12 +3,14 @@
     "step": {
       "user": {
         "title": "Add a Pylontech serial bridge",
-        "description": "Pick the ESPHome serial port wired to your Pylontech console. Host, API port and encryption key are taken from the ESPHome device. Choose manual entry if it isn't listed.",
+        "description": "Pick the ESPHome serial port wired to your Pylontech console and enter its API encryption key. Host and API port are taken from the ESPHome device. Choose manual entry if it isn't listed.",
         "data": {
           "device": "Serial port",
+          "encryption_key": "API encryption key",
           "create_dashboard": "Create Pylontech dashboard"
         },
         "data_description": {
+          "encryption_key": "The API `key` from your ESPHome config (pylontech_api_key in secrets.yaml)",
           "create_dashboard": "Adds a Pylontech dashboard to the sidebar with the battery card, energy, balance and history. You can edit or delete it afterwards."
         }
       },
@@ -31,11 +33,13 @@
       },
       "confirm": {
         "title": "Add a Pylontech serial bridge",
-        "description": "Set up Pylontech on {name}?",
+        "description": "Set up Pylontech on {name}? Enter the ESP's API encryption key.",
         "data": {
+          "encryption_key": "API encryption key",
           "create_dashboard": "Create Pylontech dashboard"
         },
         "data_description": {
+          "encryption_key": "The API `key` from your ESPHome config (pylontech_api_key in secrets.yaml)",
           "create_dashboard": "Adds a Pylontech dashboard to the sidebar with the battery card, energy, balance and history. You can edit or delete it afterwards."
         }
       }

@@ -37,7 +37,6 @@ from .const import (
 # `esphome-hass://esphome/<esphome_entry_id>?port_name=<name>` (HA >= 2026.9).
 ESPHOME_DOMAIN = "esphome"
 ESPHOME_URL_SCHEME = "esphome-hass"
-ESPHOME_NOISE_PSK = "noise_psk"
 MANUAL_CHOICE = "__manual__"
 
 STEP_MANUAL_SCHEMA = vol.Schema(
@@ -79,8 +78,12 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
             if resolved is None:
                 errors["base"] = "cannot_connect"
             else:
+                host, api_port, port_name = resolved
                 result, error = await self._validate_and_create(
-                    *resolved,
+                    host,
+                    api_port,
+                    user_input.get(CONF_ENCRYPTION_KEY, ""),
+                    port_name,
                     device_url=choice,
                     create_dashboard=user_input.get(CONF_CREATE_DASHBOARD, False),
                 )
@@ -94,6 +97,7 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_DEVICE): vol.In(options),
+                    vol.Optional(CONF_ENCRYPTION_KEY): str,
                     vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool,
                 }
             ),
@@ -149,8 +153,12 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
             if resolved is None:
                 errors["base"] = "cannot_connect"
             else:
+                host, api_port, port_name = resolved
                 result, error = await self._validate_and_create(
-                    *resolved,
+                    host,
+                    api_port,
+                    user_input[CONF_ENCRYPTION_KEY],
+                    port_name,
                     device_url=self._usb_url,
                     create_dashboard=user_input.get(CONF_CREATE_DASHBOARD, False),
                 )
@@ -161,7 +169,10 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema(
-                {vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool}
+                {
+                    vol.Required(CONF_ENCRYPTION_KEY): str,
+                    vol.Optional(CONF_CREATE_DASHBOARD, default=False): bool,
+                }
             ),
             description_placeholders={"name": self._usb_label or ""},
             errors=errors,
@@ -197,8 +208,8 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _resolve_esphome(
         self, url: str
-    ) -> tuple[str, int, str | None, str] | None:
-        """Turn an ``esphome-hass://`` URL into (host, api port, noise PSK, port name)."""
+    ) -> tuple[str, int, str] | None:
+        """Turn an ``esphome-hass://`` URL into (host, api port, port name)."""
         parsed = URL(url)
         entry_id = parsed.path.lstrip("/")
         port_name = parsed.query.get("port_name")
@@ -208,7 +219,6 @@ class PylontechConfigFlow(ConfigFlow, domain=DOMAIN):
         return (
             entry.data[CONF_HOST],
             entry.data.get(CONF_PORT, DEFAULT_PORT),
-            entry.data.get(ESPHOME_NOISE_PSK),
             port_name,
         )
 

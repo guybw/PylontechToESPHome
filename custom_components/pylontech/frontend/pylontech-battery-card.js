@@ -568,7 +568,7 @@ class PylontechBatteryCard extends HTMLElement {
       <ha-card>
         <div class="hmi-container">
           <div class="hmi-header">
-            <span class="hmi-title">${this.config.title}</span>
+            <span class="hmi-title">${escapeHtml(this.config.title)}</span>
             <div class="health-indicator level-0" id="health-indicator">
               <span id="health-text">NORMAL</span>
             </div>
